@@ -69,8 +69,8 @@ switch sample.kind
     case "scan"
         xyz = readPly(sample.file);
     case "ct"
-        [volume, spacing] = readNifti(sample.file);
-        xyz = ctSurfacePoints(volume, spacing, 300);
+        [volume, spacing, slope, intercept] = readNifti(sample.file);
+        xyz = ctSurfacePoints(volume, spacing, (300 - intercept) / slope);
     case "synthetic"
         xyz = syntheticCloud(sample.count);
 end

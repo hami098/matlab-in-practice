@@ -4,16 +4,18 @@ if fid < 0
     error("readPly:open", "Cannot open %s.", file)
 end
 closeFile = onCleanup(@() fclose(fid));
-if nextLine(fid) ~= "ply"
-    error("readPly:format", "%s is not a PLY file.", file)
+head = fread(fid, [1 65536], "*uint8");
+marker = strfind(char(head), "end_header");
+if ~startsWith(char(head), "ply") || isempty(marker)
+    error("readPly:format", "%s is not a PLY file with a header under 64 KB.", file)
 end
+start = marker(1) + find(head(marker(1):end) == 10, 1) - 1;
 format = "";
 elements = strings(0);
 count = 0;
 names = strings(0);
 types = strings(0);
-line = nextLine(fid);
-while line ~= "end_header"
+for line = splitlines(string(char(head(1:marker(1) - 1))))'
     words = split(strtrim(line));
     switch words(1)
         case "format"
@@ -29,7 +31,6 @@ while line ~= "end_header"
                 names(end + 1) = words(end);
             end
     end
-    line = nextLine(fid);
 end
 if ~ismember(format, ["binary_little_endian" "binary_big_endian"])
     error("readPly:format", "Only binary PLY is read, %s is %s.", file, format)
@@ -40,7 +41,6 @@ end
 [sizes, classes] = arrayfun(@typeOf, types);
 offsets = cumsum([0 sizes(1:end - 1)]);
 stride = sum(sizes);
-start = ftell(fid);
 fseek(fid, 0, "eof");
 if count * stride > ftell(fid) - start
     error("readPly:size", "The header declares more vertices than %s holds.", file)
@@ -57,14 +57,6 @@ for k = 1:3
     end
     xyz(:, k) = single(column);
 end
-end
-
-function line = nextLine(fid)
-line = fgetl(fid);
-if ~ischar(line)
-    error("readPly:format", "The header ends before end_header.")
-end
-line = string(line);
 end
 
 function [bytes, class] = typeOf(type)

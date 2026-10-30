@@ -1,4 +1,4 @@
-function [volume, spacing] = readNifti(file)
+function [volume, spacing, slope, intercept] = readNifti(file)
 info = dir(file);
 machine = "l";
 fid = fopen(file, "r", machine);
@@ -30,9 +30,10 @@ if dims(1) < 3 || prod(shape) * bytes > info.bytes - offset
     error("readNifti:size", "The header of %s does not match its size.", file)
 end
 fseek(fid, offset, "bof");
-volume = reshape(fread(fid, prod(shape), class + "=>single"), shape);
-if slope ~= 0
-    volume = volume * slope + intercept;
+volume = reshape(fread(fid, prod(shape), "*" + class), shape);
+if slope == 0
+    slope = 1;
+    intercept = 0;
 end
 spacing = pixdim(2:4);
 end

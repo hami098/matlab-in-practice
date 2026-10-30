@@ -25,9 +25,9 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 
 | File | Does |
 |---|---|
-| `readPly.m` | binary PLY, any vertex properties; returns x, y, z as an N by 3 single array; checks the declared count against the file size |
-| `readNifti.m` | single file NIfTI-1; applies scale and offset; returns the volume in single and the voxel size |
-| `ctSurfacePoints.m` | voxels at or above a threshold (300 HU, bone) with a neighbor below it, in millimeters |
+| `readPly.m` | binary PLY, any vertex properties; reads the header as bytes, since `fgetl` took 0.39 s for the 8 header lines of a 101 MB file and `fread` 0.01 s for its vertices; returns x, y, z as an N by 3 single array; checks the declared count against the file size |
+| `readNifti.m` | single file NIfTI-1; returns the stored values in their own type with the slope and intercept that turn them into real values, since converting to single while reading made it 9 times slower; and the voxel size |
+| `ctSurfacePoints.m` | voxels at or above a threshold (300 HU, bone) with a neighbor below it, in millimeters; only those voxels, 1 to 2 % of a CT, are compared with their six neighbors |
 | `syntheticCloud.m` | random points on a torus |
 | `page/points.js` | the WebGPU viewer: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color by height, a trackball camera kept as a quaternion so it turns freely, the axes |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files that scales them the same way |
@@ -40,11 +40,11 @@ MATLAB R2026b on Windows, NVIDIA Pascal GPU. After a click, the MATLAB thread is
 
 | Sample | Points | Prepared | First picture | Complete |
 |---|---|---|---|---|
-| torus 1M | 1,000,000 | 0.05 s | 0.09 s | 0.09 s |
-| torus 10M | 10,000,000 | 0.46 s | 0.50 s | 0.87 s |
-| torus 50M | 50,000,000 | 2.26 s | 2.37 s | 4.07 s |
-| Redwood 06822, truck | 2,673,085 | 0.54 s | 0.57 s | 0.63 s |
-| CT s1082 | 749,639 | 0.87 s | 0.90 s | 0.90 s |
+| torus 1M | 1,000,000 | 0.06 s | 0.09 s | 0.09 s |
+| torus 10M | 10,000,000 | 0.46 s | 0.50 s | 0.85 s |
+| torus 50M | 50,000,000 | 2.19 s | 2.32 s | 3.88 s |
+| Redwood 06822, truck | 2,673,085 | 0.15 s | 0.18 s | 0.24 s |
+| CT s1082 | 749,639 | 0.26 s | 0.29 s | 0.30 s |
 
 16 bits within the bounds keep 1/65535 of the largest extent: 0.06 mm on a 3.7 m scan.
 
@@ -60,6 +60,8 @@ One change at a time, same machine, second of two runs.
 | bounds from MATLAB, progressive order, drawn while it arrives | 0.58 s | 1.65 s | 2.95 s | 8.86 s |
 | 16-bit coordinates, 6 instead of 12 bytes per point | 0.47 s | 1.04 s | 2.25 s | 5.24 s |
 | four files fetched at the same time | 0.50 s | 0.87 s | 2.37 s | 4.07 s |
+
+Faster readers then brought the truck scan from 0.63 s to 0.24 s and the largest CT from 0.90 s to 0.30 s, with identical points.
 
 Writing the progressive order with 64 strided copies cost 1.56 s for 50M points; one `permute` costs 0.49 s, against 0.33 s for the plain transpose that any interleaved write needs.
 
