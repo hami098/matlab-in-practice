@@ -25,6 +25,8 @@ let loading = new Set();
 let asked = 0;
 let arrived = 0;
 let reported = false;
+let firstText = "";
+let restText = "";
 
 const since = start => ((performance.now() - start) / 1000).toFixed(2);
 
@@ -42,17 +44,24 @@ async function load(block) {
   const prefix = table.prefix;
   if (cache.has(block) || loading.has(block)) return;
   loading.add(block);
-  try {
-    const response = await fetch(`${prefix}-${block}.bin`);
-    if (!response.ok || prefix !== table.prefix) return;
-    const buffer = await response.arrayBuffer();
-    if (prefix !== table.prefix) return;
-    cache.set(block, views(buffer, Math.min(table.blockRows, table.rows - block * table.blockRows)));
-    while (cache.size > 64) cache.delete(cache.keys().next().value);
-    grid.refresh();
-  } finally {
-    if (prefix === table.prefix) loading.delete(block);
+  const response = await fetch(`${prefix}-${block}.bin`).catch(() => null);
+  if (prefix !== table.prefix) return;
+  if (!response?.ok) {
+    if (!table.complete) setTimeout(() => retry(prefix, block), 100);
+    return;
   }
+  const buffer = await response.arrayBuffer();
+  if (prefix !== table.prefix) return;
+  cache.set(block, views(buffer, Math.min(table.blockRows, table.rows - block * table.blockRows)));
+  while (cache.size > 64) cache.delete(cache.keys().next().value);
+  loading.delete(block);
+  grid.refresh();
+}
+
+function retry(prefix, block) {
+  if (prefix !== table.prefix) return;
+  loading.delete(block);
+  grid.refresh();
 }
 
 function text(index) {
@@ -90,14 +99,26 @@ function range(first, last) {
   }
 }
 
+function say(first, rest) {
+  status.textContent = `${first} ${rest}`.trim();
+}
+
 function finish() {
-  const s = table.seconds;
-  const line = `${table.rows.toLocaleString("en")} of ${table.total.toLocaleString("en")} rows. ` +
-    `Data ${s.prepared.toFixed(2)} s, filter and sort ${s.selected.toFixed(2)} s, write ${s.written.toFixed(2)} s, ` +
-    `first rows ${since(arrived)} s later.`;
-  status.textContent = line;
+  firstText = `${table.rows.toLocaleString("en")} of ${table.total.toLocaleString("en")} rows, first rows after ${since(host ? asked : arrived)} s.`;
+  say(firstText, table.complete ? restText : "Writing the other blocks.");
   bar.classList.remove("busy");
-  host?.sendEventToMATLAB("shown", `${line} From the request: ${since(asked)} s.`);
+  host?.sendEventToMATLAB("shown", `${firstText} Announced by MATLAB ${since(arrived)} s before.`);
+}
+
+function complete(manifest) {
+  if (!table || manifest.prefix !== table.prefix) return;
+  const s = manifest.seconds;
+  table.complete = true;
+  loading = new Set();
+  restText = `Data ${s.prepared.toFixed(2)} s, filter and sort ${s.selected.toFixed(2)} s, first block ${s.first.toFixed(2)} s, all ${table.blocks} blocks ${s.written.toFixed(2)} s.`;
+  say(reported ? firstText : "", restText);
+  grid.refresh();
+  host?.sendEventToMATLAB("done", `${table.rows.toLocaleString("en")} rows: ${restText}`);
 }
 
 function show(manifest) {
@@ -108,6 +129,7 @@ function show(manifest) {
   loading = new Set();
   arrived = performance.now();
   reported = false;
+  restText = "";
   if (tests.options.length === 1) tests.append(...table.tests.map((test, k) => new Option(test.name, k + 1)));
   grid.mark(request.sort, request.direction);
   grid.show(table.rows);
@@ -151,6 +173,7 @@ fetch("table.json").then(response => response.ok ? response.json() : null).then(
 function setup(htmlComponent) {
   host = htmlComponent;
   host.addEventListener("table", event => show(event.Data));
+  host.addEventListener("complete", event => complete(event.Data));
   host.addEventListener("failed", event => {
     status.textContent = event.Data;
     bar.classList.remove("busy");

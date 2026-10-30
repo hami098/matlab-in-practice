@@ -6,6 +6,6 @@ spreads = [15 1.8 0.5 3 0.3 35 15 1.2 5 2 60 0.6];
 lows = [70 12 3.5 136 0.6 125 7 0.4 0 4.5 150 4];
 highs = [99 17.5 5.1 145 1.2 200 56 4 5 11 400 5.6];
 decimals = [0 1 1 0 2 0 0 2 1 1 0 1];
-tests = struct(name=num2cell(names), unit=num2cell(units), mean=num2cell(means), spread=num2cell(spreads), ...
+tests = struct(name=cellstr(names), unit=cellstr(units), mean=num2cell(means), spread=num2cell(spreads), ...
     low=num2cell(lows), high=num2cell(highs), decimals=num2cell(decimals));
 end
