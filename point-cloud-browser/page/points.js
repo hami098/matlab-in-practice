@@ -143,7 +143,7 @@ async function createViewer(canvas, axes, onFrame) {
     device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.low, 0, ...camera.size, 0, ...camera.pick, 0, ...camera.span, 0, 0]));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
-      colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0.08, 0.09, 0.11, 1], loadOp: "clear", storeOp: "store" }],
+      colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0, 0, 0, 1], loadOp: "clear", storeOp: "store" }],
       depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard" }
     });
     if (bindGroup) {
