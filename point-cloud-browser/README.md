@@ -19,8 +19,8 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 
 1. `pointCloudBrowser` copies `page` to a temporary folder and opens it in `uihtml`. The page asks for the list of samples (`ready`).
 2. A click sends `select`. MATLAB starts `prepare` on `backgroundPool` with `parfeval` and returns at once.
-3. `prepare` reads the sample and writes its points as little-endian float32 x, y, z into the temporary folder.
-4. `afterEach` sends the file name and point count to the page (`points`). The page streams the file into a buffer of the announced size, wraps it in a `Float32Array`, and `points.js` uploads it to one WebGPU vertex buffer and draws it. No number goes through JSON.
+3. `prepare` reads the sample, computes its bounds, and writes its points as little-endian float32 x, y, z in progressive order: every 64th point first, then the next 64th, built with one `permute`. Any beginning of the file is an even sample of the whole cloud.
+4. `afterEach` sends the file name, point count and bounds to the page (`points`). The page sets the camera from the bounds, streams the file straight into one WebGPU vertex buffer and draws whatever has arrived, so the whole object appears after the first chunk and fills in. No number goes through JSON.
 5. The page draws only when the data or the camera changes.
 
 | File | Does |
@@ -36,20 +36,30 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 
 ## Measured
 
-MATLAB R2026b on Windows, NVIDIA Pascal GPU. After a click, the MATLAB thread is free again within 1 to 3 ms.
+MATLAB R2026b on Windows, NVIDIA Pascal GPU. After a click, the MATLAB thread is free again within 1 to 3 ms. Times are from the moment MATLAB starts preparing.
 
-| Sample | Points | Prepared | Transferred | Drawn |
+| Sample | Points | Prepared | First picture | Complete |
 |---|---|---|---|---|
-| demo motorcycle | 35,000 | 0.07 s | 0.01 s | 0.01 s |
-| demo CT | 9,534 | 0.03 s | 0.00 s | 0.00 s |
-| Redwood 00007 | 458,820 | 0.02 s | 0.06 s | 0.02 s |
-| torus 1M | 1,000,000 | 0.06 s | 0.11 s | 0.03 s |
-| torus 10M | 10,000,000 | 0.35 s | 1.10 s | 0.19 s |
-| torus 50M | 50,000,000 | 1.63 s | 5.33 s | 1.14 s |
+| torus 1M | 1,000,000 | 0.04 s | 0.08 s | 0.20 s |
+| torus 10M | 10,000,000 | 0.42 s | 0.58 s | 1.65 s |
+| torus 50M | 50,000,000 | 2.13 s | 2.95 s | 8.86 s |
+| Redwood 06822, truck | 2,673,085 | 0.47 s | 0.53 s | 0.85 s |
+| CT s0812 | 722,078 | 0.86 s | 0.89 s | 1.01 s |
 
-The transfer from MATLAB's local web server to the page, about 110 MB/s, is the largest cost.
+The transfer from MATLAB's local web server to the page, about 90 MB/s, is the largest cost.
 
-MATLAB Online, Chrome 156, over the internet:
+### Optimization log
+
+One change at a time, same machine, second of two runs.
+
+| Change | 10M first picture | 10M complete | 50M first picture | 50M complete |
+|---|---|---|---|---|
+| start: one file, drawn after it fully arrives | 1.70 s | 1.70 s | 8.48 s | 8.48 s |
+| bounds from MATLAB, progressive order, drawn while it arrives | 0.58 s | 1.65 s | 2.95 s | 8.86 s |
+
+Writing the progressive order with 64 strided copies cost 1.56 s for 50M points; one `permute` costs 0.49 s, against 0.33 s for the plain transpose that any interleaved write needs.
+
+MATLAB Online, Chrome 156, over the internet, before the optimizations:
 
 | Sample | Points | Prepared | Transferred |
 |---|---|---|---|

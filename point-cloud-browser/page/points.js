@@ -106,7 +106,7 @@ async function createViewer(canvas, axes, onFrame) {
   let points = null;
   let count = 0;
   let depth = null;
-  let pending = false;
+  let pending = null;
 
   function draw() {
     const width = Math.max(1, Math.round(canvas.clientWidth * devicePixelRatio));
@@ -149,12 +149,11 @@ async function createViewer(canvas, axes, onFrame) {
   }
 
   function redraw() {
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(() => {
-      pending = false;
-      draw();
-    });
+    pending ??= new Promise(resolve => requestAnimationFrame(() => {
+      pending = null;
+      draw().then(resolve);
+    }));
+    return pending;
   }
 
   function reset() {
@@ -179,18 +178,22 @@ async function createViewer(canvas, axes, onFrame) {
   });
   new ResizeObserver(redraw).observe(canvas);
 
-  async function show(xyz) {
-    const { low, high } = bounds(xyz);
+  function begin(total, low, high) {
     camera.center = low.map((v, i) => (v + high[i]) / 2);
     camera.radius = Math.hypot(...high.map((v, i) => v - low[i])) / 2 || 1;
     camera.range = [low[2], high[2]];
     reset();
     points?.destroy();
-    points = device.createBuffer({ size: Math.max(xyz.byteLength, 12), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-    device.queue.writeBuffer(points, 0, xyz);
-    count = xyz.length / 3;
-    return { low, high, frame: await draw() };
+    points = device.createBuffer({ size: Math.max(total * 12, 12), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+    count = 0;
+    return redraw();
   }
 
-  return { show, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
+  function append(bytes, offset) {
+    device.queue.writeBuffer(points, offset, bytes);
+    count = Math.floor((offset + bytes.byteLength) / 12);
+    return redraw();
+  }
+
+  return { begin, append, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
 }
