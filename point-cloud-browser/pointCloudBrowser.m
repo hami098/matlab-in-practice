@@ -51,8 +51,8 @@ sources = repmat("cache", size(names));
 sources(contains(folders, "demo-data")) = "demo";
 generated = [1e6 1e7 5e7];
 names = [compose("torus %dM", generated / 1e6) names];
-samples = struct(id=num2cell(1:numel(names)), name=num2cell(names), ...
-    kind=num2cell([repmat("synthetic", 1, 3) kinds]), source=num2cell([repmat("generated", 1, 3) sources]), ...
+samples = struct(id=num2cell(1:numel(names)), name=cellstr(names), ...
+    kind=cellstr([repmat("synthetic", 1, 3) kinds]), source=cellstr([repmat("generated", 1, 3) sources]), ...
     megabytes=num2cell([12 * generated / 1e6, [files.bytes] / 1e6]), count=num2cell([generated NaN(size(files))]), ...
     file=num2cell([strings(1, 3) fullfile(folders, fileNames)]));
 end
@@ -69,6 +69,6 @@ switch sample.kind
         xyz = syntheticCloud(sample.count);
 end
 info = writePoints(xyz, folder, name);
-info.name = sample.name;
+info.name = char(sample.name);
 info.seconds = toc(started);
 end
