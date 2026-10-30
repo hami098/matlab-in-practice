@@ -9,7 +9,13 @@ cd point-cloud-browser
 pointCloudBrowser
 ```
 
-Click a row. At most 4 million points come at first, an even sample of the whole cloud; **Load all** in the panel brings the rest. Drag to rotate in any direction, scroll to zoom, double-click to reset. The panel on the left picks the axis that sets the color and the color scale. Its range starts at the cloud's own minimum and maximum on that axis and can be typed in; points outside it take the end colors, and **Auto** brings the full range back. The bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. The panel on the right shows the last load (points, size, extent, timings, frame time, GPU), the axes in the corner are the cloud's own X, Y and Z and turn with the view, and each load prints one line with its timings in the Command Window.
+Click a row.
+
+- **View:** drag to rotate in any direction, scroll to zoom, double-click to reset. A drag that starts outside the view never turns the cloud. The axes in the corner are the cloud's own X, Y and Z.
+- **Panels:** the icons at the top right open and close **Color** and **Details**. Drag a panel by its title; panels stop at each other's edges.
+- **Color:** the axis that sets the color and the scale. The range starts at the cloud's minimum and maximum and can be typed in; points outside it take the end colors; **Auto** restores it.
+- **Details:** points, size, extent, timings, frame time, GPU. At most 4 million points come first, an even sample of the whole cloud; **Load all** brings the rest.
+- **Progress:** the bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. Each load prints its timings in the Command Window.
 
 The table lists generated tori (1, 10 and 50 million points), the files in [demo-data](../demo-data) and, when downloaded, the full data sets in `cache` ([open-data](../open-data)).
 

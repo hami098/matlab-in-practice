@@ -15,13 +15,27 @@
 <main>
 <canvas></canvas>
 <div id="progress" hidden><div></div></div>
-<dl id="details"></dl>
+<nav id="tools">
+<button data-panel="color-panel" title="Color">
+<svg viewBox="0 0 16 16"><path d="M8 1.5a6.5 6.5 0 1 0 0 13c1 0 1.4-.8 1-1.6-.4-.9.2-1.9 1.2-1.9H12a2.5 2.5 0 0 0 2.5-2.5c0-3.9-2.9-7-6.5-7Z"/><circle cx="4.8" cy="7.2" r="1"/><circle cx="7.6" cy="4.6" r="1"/><circle cx="10.8" cy="6" r="1"/></svg>
+</button>
+<button data-panel="details-panel" title="Details">
+<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v4.3M8 4.7v.1"/></svg>
+</button>
+</nav>
+<section class="panel" id="color-panel" data-side="left">
+<header><span>Color</span><button title="Hide">&times;</button></header>
 <div id="coloring">
 <label>Color by <select id="axis"><option value="0">X</option><option value="1">Y</option><option value="2" selected>Z</option></select></label>
 <label>Scale <select id="scale"></select></label>
 <div id="colorbar"></div>
 <div id="range"><input id="from" type="number" step="any"><button id="auto">Auto</button><input id="to" type="number" step="any"></div>
 </div>
+</section>
+<section class="panel" id="details-panel" data-side="right">
+<header><span>Details</span><button title="Hide">&times;</button></header>
+<dl id="details"><dt>Points</dt><dd>none yet</dd></dl>
+</section>
 <svg id="axes" viewBox="-1.5 -1.5 3 3">
 <g data-axis="0"><line x1="0" y1="0" stroke="#e5534b"/><text fill="#e5534b">X</text></g>
 <g data-axis="1"><line x1="0" y1="0" stroke="#57ab5a"/><text fill="#57ab5a">Y</text></g>
@@ -31,6 +45,7 @@
 </main>
 <script src="colors.js"></script>
 <script src="points.js"></script>
+<script src="panels.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -14,12 +14,23 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 #progress > div { height: 100%; width: 0; background: #4c8dff; }
 #progress.busy > div { width: 30%; animation: slide 1.2s linear infinite; }
 @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-#details { position: absolute; top: 12px; right: 12px; margin: 0; padding: 8px 12px; display: grid; grid-template-columns: auto auto; gap: 2px 16px; background: #1b1e25d9; border-radius: 6px; }
-#details:empty { display: none; }
+#tools { position: absolute; top: 12px; right: 12px; display: flex; gap: 2px; padding: 3px; background: #1b1e25e6; border-radius: 6px; }
+#tools button { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; color: #8b92a3; background: none; border: 0; border-radius: 4px; cursor: pointer; }
+#tools button:hover { background: #222631; }
+#tools button.active { color: #d8dbe2; background: #2d3a55; }
+#tools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+#tools circle[r="1"] { fill: currentColor; stroke: none; }
+.panel { position: absolute; background: #1b1e25e6; border-radius: 6px; box-shadow: 0 2px 10px #0008; }
+.panel > header { display: flex; justify-content: space-between; align-items: center; padding: 3px 4px 3px 12px; color: #8b92a3; border-bottom: 1px solid #2a2e37; cursor: move; user-select: none; touch-action: none; }
+.panel > header button { width: 22px; height: 22px; padding: 0; font: inherit; font-size: 16px; line-height: 1; color: inherit; background: none; border: 0; border-radius: 4px; cursor: pointer; }
+.panel > header button:hover { background: #222631; }
+#color-panel { width: 244px; }
+#details-panel { width: 280px; }
+#details { margin: 0; padding: 8px 12px; display: grid; grid-template-columns: auto auto; gap: 2px 16px; }
 #details dt { color: #8b92a3; }
 #details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 #details button { font: inherit; color: inherit; background: #2d3a55; border: 1px solid #4c8dff; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
-#coloring { position: absolute; top: 12px; left: 12px; width: 220px; padding: 8px 12px; display: grid; gap: 6px; background: #1b1e25d9; border-radius: 6px; }
+#coloring { padding: 8px 12px; display: grid; gap: 6px; }
 #coloring label { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #8b92a3; }
 #coloring select { font: inherit; color: #d8dbe2; background: #14161b; border: 1px solid #2a2e37; border-radius: 4px; }
 #colorbar { height: 10px; border-radius: 2px; }

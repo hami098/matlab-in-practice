@@ -175,9 +175,14 @@ async function createViewer(canvas, axes, onFrame) {
     camera.distance = camera.radius * 2.5;
   }
 
-  canvas.addEventListener("pointerdown", event => canvas.setPointerCapture(event.pointerId));
+  let dragging = false;
+  canvas.addEventListener("pointerdown", event => {
+    dragging = true;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("lostpointercapture", () => dragging = false);
   canvas.addEventListener("pointermove", event => {
-    if (event.buttons !== 1) return;
+    if (!dragging) return;
     camera.rotation = combine(turn([0, 1, 0], event.movementX * 0.01), combine(turn([1, 0, 0], event.movementY * 0.01), camera.rotation));
     redraw();
   });
