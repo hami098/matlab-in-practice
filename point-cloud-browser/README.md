@@ -37,6 +37,7 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 | `syntheticCloud.m` | random points on a torus |
 | `writePoints.m` | any N by 3 array to the four files the page reads, and the bounds and counts it needs; usable on its own |
 | `page/points.js` | the WebGPU viewer: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color from a 256-entry table indexed by the chosen axis within the chosen range, a trackball camera kept as a quaternion so it turns freely, the axes |
+| `page/panels.js` | the panels: opened and closed from the toolbar, dragged by the title inside the view, never on top of each other |
 | `page/colors.js` | the color scales (Turbo, Viridis, Plasma, Cividis, Jet, Gray) as stops, turned into the 256-entry table and the CSS gradient of the color bar; changing the scale rewrites only that 4 KB table |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files that scales them the same way |
 
