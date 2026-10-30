@@ -2,7 +2,7 @@
 
 [![Open in MATLAB Online](https://www.mathworks.com/images/responsive/global/open-in-matlab-online.svg)](https://matlab.mathworks.com/open/github/v1?repo=hami098/matlab-in-practice)
 
-Small MATLAB examples for large 3D data. Each folder answers one question and runs on its own, with MATLAB alone: no toolboxes, interfaces in plain HTML and JavaScript on WebGPU or WebGL2.
+Small MATLAB examples for large 3D data. Each folder answers one question and runs on its own, with MATLAB alone and no toolboxes. MATLAB prepares the data; a plain HTML, CSS and JavaScript page draws it with WebGPU or WebGL2, and the same page runs in any browser without MATLAB.
 
 I am not affiliated with MathWorks. I am an independent researcher exploring how MATLAB is used in practice.
 
@@ -32,6 +32,7 @@ Each folder's README names its function and explains the result.
 
 - One folder, one question. Each folder has a README; the code has no comments.
 - MATLAB alone, open source code, openly licensed data. Data is downloaded, never committed.
+- Pages use WebGPU and WebGL2 directly, with no framework, and never depend on MATLAB.
 - A choice stays only if a measurement supports it.
 
 ## License
