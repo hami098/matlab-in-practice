@@ -116,7 +116,8 @@ async function createViewer(canvas, axes, onFrame) {
   const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1] };
   let points = null;
   let bindGroup = null;
-  let count = 0;
+  let firsts = [];
+  let filled = [];
   let depth = null;
   let pending = null;
 
@@ -143,10 +144,10 @@ async function createViewer(canvas, axes, onFrame) {
       colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0.08, 0.09, 0.11, 1], loadOp: "clear", storeOp: "store" }],
       depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard" }
     });
-    if (count > 0) {
+    if (bindGroup) {
       pass.setPipeline(pipeline);
       pass.setBindGroup(0, bindGroup);
-      pass.draw(count);
+      filled.forEach((count, part) => count > 0 && pass.draw(count, 1, firsts[part]));
     }
     pass.end();
     const submitted = performance.now();
@@ -189,7 +190,10 @@ async function createViewer(canvas, axes, onFrame) {
   });
   new ResizeObserver(redraw).observe(canvas);
 
-  function begin(total, low, high) {
+  function begin(counts, low, high) {
+    firsts = counts.map((_, part) => counts.slice(0, part).reduce((a, b) => a + b, 0));
+    filled = counts.map(() => 0);
+    const total = counts.reduce((a, b) => a + b, 0);
     camera.low = low;
     camera.size = high.map((v, i) => v - low[i]);
     camera.center = low.map((v, i) => (v + high[i]) / 2);
@@ -201,13 +205,12 @@ async function createViewer(canvas, axes, onFrame) {
       layout: pipeline.getBindGroupLayout(0),
       entries: [{ binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: { buffer: points } }]
     });
-    count = 0;
     return redraw();
   }
 
-  function append(bytes, offset) {
-    device.queue.writeBuffer(points, offset, bytes);
-    count = Math.floor((offset + bytes.byteLength) / 6);
+  function append(part, bytes, offset) {
+    device.queue.writeBuffer(points, firsts[part] * 6 + offset, bytes);
+    filled[part] = Math.floor((offset + bytes.byteLength) / 6);
     return redraw();
   }
 

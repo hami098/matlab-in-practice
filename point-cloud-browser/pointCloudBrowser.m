@@ -17,7 +17,7 @@ served = 0;
             case "select"
                 cancel(job);
                 served = served + 1;
-                job = parfeval(backgroundPool, @prepare, 1, samples(event.HTMLEventData), fullfile(site, "points-" + served + ".bin"));
+                job = parfeval(backgroundPool, @prepare, 1, samples(event.HTMLEventData), site, "points-" + served);
                 afterEach(job, @deliver, 0, PassFuture=true);
             case "shown"
                 disp(event.HTMLEventData)
@@ -63,7 +63,7 @@ for f = files'
 end
 end
 
-function info = prepare(sample, target)
+function info = prepare(sample, folder, name)
 started = tic;
 switch sample.kind
     case "scan"
@@ -78,10 +78,19 @@ low = min(xyz, [], 1);
 high = max(xyz, [], 1);
 quantized = uint16((xyz - low) .* (65535 ./ max(high - low, eps("single"))));
 whole = 64 * floor(size(quantized, 1) / 64);
-fid = fopen(target, "w");
-fwrite(fid, permute(reshape(quantized(1:whole, :), 64, [], 3), [3 2 1]), "uint16", 0, "l");
-fwrite(fid, quantized(whole + 1:end, :).', "uint16", 0, "l");
-fclose(fid);
-[~, name, extension] = fileparts(target);
-info = struct(name=sample.name, url=name + extension, count=size(xyz, 1), low=low, high=high, seconds=toc(started));
+ordered = permute(reshape(quantized(1:whole, :), 64, [], 3), [3 2 1]);
+urls = strings(1, 4);
+counts = zeros(1, 4);
+for k = 1:4
+    block = reshape(ordered(:, :, 16 * k - 15:16 * k), 3, []);
+    if k == 4
+        block = [block quantized(whole + 1:end, :).'];
+    end
+    urls(k) = name + "-" + k + ".bin";
+    fid = fopen(fullfile(folder, urls(k)), "w");
+    fwrite(fid, block, "uint16", 0, "l");
+    fclose(fid);
+    counts(k) = size(block, 2);
+end
+info = struct(name=sample.name, urls=urls, counts=counts, count=size(xyz, 1), low=low, high=high, seconds=toc(started));
 end

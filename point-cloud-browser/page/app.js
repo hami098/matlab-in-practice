@@ -117,18 +117,20 @@ async function showPoints(info) {
   download?.abort();
   download = new AbortController();
   const view = await viewer;
+  const counts = [].concat(info.counts);
   const size = info.count * 6;
   const total = (size / 1e6).toFixed(1);
   const started = performance.now();
+  let received = 0;
   let first = null;
   try {
-    view.begin(info.count, info.low, info.high);
-    await stream(info.url, size, download.signal, (bytes, offset) => {
-      const drawn = view.append(bytes, offset);
+    view.begin(counts, info.low, info.high);
+    await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * 6, download.signal, (bytes, offset) => {
+      const drawn = view.append(part, bytes, offset);
       first ??= drawn.then(() => since(started));
-      const received = offset + bytes.length;
+      received = Math.min(received + bytes.length, size);
       fill(received / size, `${info.name}: ${(received / 1e6).toFixed(1)} of ${total} MB`);
-    });
+    })));
     const transferred = since(started);
     const milliseconds = await view.finish();
     report(info.name, info.count, info.low, info.high, {
@@ -190,8 +192,8 @@ document.body.addEventListener("drop", async event => {
     const xyz = parsePly(await file.arrayBuffer());
     const { low, high } = bounds(xyz);
     const prepared = since(started);
-    view.begin(xyz.length / 3, low, high);
-    view.append(new Uint8Array(quantize(xyz, low, high).buffer), 0);
+    view.begin([xyz.length / 3], low, high);
+    view.append(0, new Uint8Array(quantize(xyz, low, high).buffer), 0);
     const milliseconds = await view.finish();
     const complete = since(started);
     report(file.name, xyz.length / 3, low, high, { prepared, first: complete, transferred: 0, complete, frame: milliseconds, gpu: view.gpu });

@@ -19,8 +19,8 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 
 1. `pointCloudBrowser` copies `page` to a temporary folder and opens it in `uihtml`. The page asks for the list of samples (`ready`).
 2. A click sends `select`. MATLAB starts `prepare` on `backgroundPool` with `parfeval` and returns at once.
-3. `prepare` reads the sample, computes its bounds, scales each coordinate to a 16-bit integer within them, and writes x, y, z (6 bytes per point) in progressive order: every 64th point first, then the next 64th, built with one `permute`. Any beginning of the file is an even sample of the whole cloud.
-4. `afterEach` sends the file name, point count and bounds to the page (`points`). The page sets the camera from the bounds, streams the file straight into one WebGPU storage buffer and draws whatever has arrived, so the whole object appears after the first chunk and fills in. No number goes through JSON.
+3. `prepare` reads the sample, computes its bounds, scales each coordinate to a 16-bit integer within them, and writes x, y, z (6 bytes per point) in progressive order: every 64th point first, then the next 64th, built with one `permute`, split into four files of 16 such steps each. Any beginning of any file is an even sample of the whole cloud.
+4. `afterEach` sends the file names, point counts and bounds to the page (`points`). The page sets the camera from the bounds, fetches the four files at the same time, streams each into its own region of one WebGPU storage buffer, and draws whatever has arrived with one draw call per region, so the whole object appears after the first chunks and fills in. No number goes through JSON.
 5. The page draws only when the data or the camera changes.
 
 | File | Does |
@@ -40,13 +40,15 @@ MATLAB R2026b on Windows, NVIDIA Pascal GPU. After a click, the MATLAB thread is
 
 | Sample | Points | Prepared | First picture | Complete |
 |---|---|---|---|---|
-| torus 1M | 1,000,000 | 0.05 s | 0.07 s | 0.11 s |
-| torus 10M | 10,000,000 | 0.39 s | 0.47 s | 1.04 s |
-| torus 50M | 50,000,000 | 1.88 s | 2.25 s | 5.24 s |
-| Redwood 06822, truck | 2,673,085 | 0.48 s | 0.52 s | 0.66 s |
-| CT s1082 | 749,639 | 0.86 s | 0.89 s | 0.92 s |
+| torus 1M | 1,000,000 | 0.05 s | 0.09 s | 0.09 s |
+| torus 10M | 10,000,000 | 0.46 s | 0.50 s | 0.87 s |
+| torus 50M | 50,000,000 | 2.26 s | 2.37 s | 4.07 s |
+| Redwood 06822, truck | 2,673,085 | 0.54 s | 0.57 s | 0.63 s |
+| CT s1082 | 749,639 | 0.87 s | 0.90 s | 0.90 s |
 
-16 bits within the bounds keep 1/65535 of the largest extent: 0.06 mm on a 3.7 m scan. The transfer from MATLAB's local web server to the page, about 90 MB/s, is still the largest cost.
+16 bits within the bounds keep 1/65535 of the largest extent: 0.06 mm on a 3.7 m scan.
+
+Parallel work pays where something waits, not where the cores are already busy. One connection to MATLAB's local web server carried 108 to 116 MB/s, two 166 to 170, four 185 to 217, eight 198 to 203; so four files. Preparation stays one job: MATLAB's vectorized functions already use the four cores of this machine inside one worker, so generating 50M points as four jobs took 1.04 s against 1.46 s as one, and sending 600 MB to a worker costs a 0.4 s copy.
 
 ### Optimization log
 
@@ -57,6 +59,7 @@ One change at a time, same machine, second of two runs.
 | start: one file, drawn after it fully arrives | 1.70 s | 1.70 s | 8.48 s | 8.48 s |
 | bounds from MATLAB, progressive order, drawn while it arrives | 0.58 s | 1.65 s | 2.95 s | 8.86 s |
 | 16-bit coordinates, 6 instead of 12 bytes per point | 0.47 s | 1.04 s | 2.25 s | 5.24 s |
+| four files fetched at the same time | 0.50 s | 0.87 s | 2.37 s | 4.07 s |
 
 Writing the progressive order with 64 strided copies cost 1.56 s for 50M points; one `permute` costs 0.49 s, against 0.33 s for the plain transpose that any interleaved write needs.
 
