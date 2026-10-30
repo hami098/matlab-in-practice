@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use or build on this work, please cite it as below."
 type: software
 title: "matlab-in-practice"
-abstract: "Large 3D point clouds in MATLAB with a responsive HTML interface: background loading, binary transfer and WebGL rendering, written from scratch and measured."
+abstract: "Small MATLAB examples for large 3D data, one question per folder: WebGPU and WebGL2 inside uihtml, float32 transfer, background loading. MATLAB alone, measured."
 authors:
   - family-names: "Bilir"
     given-names: "Hami Bahadır"

@@ -1,4 +1,4 @@
-data/cache/
+cache/
 results/
 *.asv
 *.m~
