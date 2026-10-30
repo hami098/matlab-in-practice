@@ -74,12 +74,14 @@ switch sample.kind
     case "synthetic"
         xyz = syntheticCloud(sample.count);
 end
-whole = 64 * floor(size(xyz, 1) / 64);
+low = min(xyz, [], 1);
+high = max(xyz, [], 1);
+quantized = uint16((xyz - low) .* (65535 ./ max(high - low, eps("single"))));
+whole = 64 * floor(size(quantized, 1) / 64);
 fid = fopen(target, "w");
-fwrite(fid, permute(reshape(xyz(1:whole, :), 64, [], 3), [3 2 1]), "single", 0, "l");
-fwrite(fid, xyz(whole + 1:end, :).', "single", 0, "l");
+fwrite(fid, permute(reshape(quantized(1:whole, :), 64, [], 3), [3 2 1]), "uint16", 0, "l");
+fwrite(fid, quantized(whole + 1:end, :).', "uint16", 0, "l");
 fclose(fid);
 [~, name, extension] = fileparts(target);
-info = struct(name=sample.name, url=name + extension, count=size(xyz, 1), ...
-    low=min(xyz, [], 1), high=max(xyz, [], 1), seconds=toc(started));
+info = struct(name=sample.name, url=name + extension, count=size(xyz, 1), low=low, high=high, seconds=toc(started));
 end

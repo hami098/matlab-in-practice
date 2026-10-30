@@ -1,11 +1,21 @@
 const shader = `
-struct View { matrix: mat4x4f, range: vec4f }
+struct View { matrix: mat4x4f, low: vec4f, size: vec4f }
 @group(0) @binding(0) var<uniform> view: View;
+@group(0) @binding(1) var<storage, read> words: array<u32>;
 struct Varying { @builtin(position) position: vec4f, @location(0) color: vec3f }
 
-@vertex fn vertexMain(@location(0) point: vec3f) -> Varying {
-  let t = clamp((point.z - view.range.x) / (view.range.y - view.range.x), 0.0, 1.0);
-  return Varying(view.matrix * vec4f(point, 1.0), mix(vec3f(0.15, 0.45, 0.95), vec3f(0.98, 0.62, 0.2), t));
+fn unit(i: u32) -> vec3f {
+  let base = i / 2u * 3u;
+  if (i % 2u == 0u) {
+    return vec3f(unpack2x16unorm(words[base]), unpack2x16unorm(words[base + 1u]).x);
+  }
+  return vec3f(unpack2x16unorm(words[base + 1u]).y, unpack2x16unorm(words[base + 2u]));
+}
+
+@vertex fn vertexMain(@builtin(vertex_index) i: u32) -> Varying {
+  let p = unit(i);
+  let color = mix(vec3f(0.15, 0.45, 0.95), vec3f(0.98, 0.62, 0.2), p.z);
+  return Varying(view.matrix * vec4f(view.low.xyz + p * view.size.xyz, 1.0), color);
 }
 
 @fragment fn fragmentMain(input: Varying) -> @location(0) vec4f {
@@ -87,23 +97,25 @@ function drawAxes(svg, rotation) {
 async function createViewer(canvas, axes, onFrame) {
   const adapter = await navigator.gpu?.requestAdapter();
   if (!adapter) throw new Error("WebGPU is not available in this browser.");
-  const device = await adapter.requestDevice({ requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize } });
+  const device = await adapter.requestDevice({
+    requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize }
+  });
   const context = canvas.getContext("webgpu");
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format, alphaMode: "opaque" });
   const module = device.createShaderModule({ code: shader });
   const pipeline = device.createRenderPipeline({
     layout: "auto",
-    vertex: { module, entryPoint: "vertexMain", buffers: [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] }] },
+    vertex: { module, entryPoint: "vertexMain" },
     fragment: { module, entryPoint: "fragmentMain", targets: [{ format }] },
     primitive: { topology: "point-list" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" }
   });
-  const uniform = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uniform } }] });
+  const uniform = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const start = combine(turn([1, 0, 0], 0.4), turn([0, 1, 0], -0.6));
-  const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, range: [0, 1] };
+  const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1] };
   let points = null;
+  let bindGroup = null;
   let count = 0;
   let depth = null;
   let pending = null;
@@ -125,7 +137,7 @@ async function createViewer(canvas, axes, onFrame) {
       rotationMatrix(camera.rotation),
       translation(camera.center.map(v => -v))
     );
-    device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.range, 0, 0]));
+    device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.low, 0, ...camera.size, 0]));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0.08, 0.09, 0.11, 1], loadOp: "clear", storeOp: "store" }],
@@ -134,7 +146,6 @@ async function createViewer(canvas, axes, onFrame) {
     if (count > 0) {
       pass.setPipeline(pipeline);
       pass.setBindGroup(0, bindGroup);
-      pass.setVertexBuffer(0, points);
       pass.draw(count);
     }
     pass.end();
@@ -179,19 +190,24 @@ async function createViewer(canvas, axes, onFrame) {
   new ResizeObserver(redraw).observe(canvas);
 
   function begin(total, low, high) {
+    camera.low = low;
+    camera.size = high.map((v, i) => v - low[i]);
     camera.center = low.map((v, i) => (v + high[i]) / 2);
-    camera.radius = Math.hypot(...high.map((v, i) => v - low[i])) / 2 || 1;
-    camera.range = [low[2], high[2]];
+    camera.radius = Math.hypot(...camera.size) / 2 || 1;
     reset();
     points?.destroy();
-    points = device.createBuffer({ size: Math.max(total * 12, 12), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+    points = device.createBuffer({ size: Math.max(Math.ceil(total * 6 / 4) * 4, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    bindGroup = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: { buffer: points } }]
+    });
     count = 0;
     return redraw();
   }
 
   function append(bytes, offset) {
     device.queue.writeBuffer(points, offset, bytes);
-    count = Math.floor((offset + bytes.byteLength) / 12);
+    count = Math.floor((offset + bytes.byteLength) / 6);
     return redraw();
   }
 

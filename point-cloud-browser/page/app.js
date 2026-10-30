@@ -50,12 +50,14 @@ function describe(entries) {
 }
 
 function report(name, count, low, high, times) {
-  const megabytes = count * 12 / 1e6;
+  const megabytes = count * 6 / 1e6;
+  const extent = high.map((v, i) => v - low[i]);
   describe([
     ["Name", name],
     ["Points", count.toLocaleString("en")],
     ["Data", `${megabytes.toFixed(1)} MB`],
-    ["Extent", high.map((v, i) => (v - low[i]).toPrecision(3)).join(" x ")],
+    ["Extent", extent.map(v => v.toPrecision(3)).join(" x ")],
+    ["Precision", (Math.max(...extent) / 65535).toPrecision(2)],
     ["Prepared", `${times.prepared.toFixed(2)} s`],
     ["First picture", `${times.first.toFixed(2)} s`],
     ["Transferred", times.transferred > 0 ? `${times.transferred.toFixed(2)} s, ${(megabytes / times.transferred).toFixed(0)} MB/s` : "none"],
@@ -102,6 +104,12 @@ async function stream(url, size, signal, onBytes) {
     offset += usable;
     carry = bytes.slice(usable);
   }
+  if (carry.length > 0) {
+    const padded = new Uint8Array(4);
+    padded.set(carry);
+    onBytes(padded, offset);
+    offset += carry.length;
+  }
   if (offset !== size) throw new Error("The file is shorter than announced.");
 }
 
@@ -109,7 +117,7 @@ async function showPoints(info) {
   download?.abort();
   download = new AbortController();
   const view = await viewer;
-  const size = info.count * 12;
+  const size = info.count * 6;
   const total = (size / 1e6).toFixed(1);
   const started = performance.now();
   let first = null;
@@ -163,6 +171,13 @@ function parsePly(buffer) {
   return xyz;
 }
 
+function quantize(xyz, low, high) {
+  const scale = high.map((v, i) => 65535 / Math.max(v - low[i], 1e-30));
+  const out = new Uint16Array(xyz.length + xyz.length % 2);
+  for (let i = 0; i < xyz.length; i++) out[i] = Math.round((xyz[i] - low[i % 3]) * scale[i % 3]);
+  return out;
+}
+
 document.body.addEventListener("dragover", event => event.preventDefault());
 document.body.addEventListener("drop", async event => {
   event.preventDefault();
@@ -176,7 +191,7 @@ document.body.addEventListener("drop", async event => {
     const { low, high } = bounds(xyz);
     const prepared = since(started);
     view.begin(xyz.length / 3, low, high);
-    view.append(new Uint8Array(xyz.buffer), 0);
+    view.append(new Uint8Array(quantize(xyz, low, high).buffer), 0);
     const milliseconds = await view.finish();
     const complete = since(started);
     report(file.name, xyz.length / 3, low, high, { prepared, first: complete, transferred: 0, complete, frame: milliseconds, gpu: view.gpu });
