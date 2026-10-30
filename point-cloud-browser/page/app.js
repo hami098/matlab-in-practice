@@ -15,7 +15,8 @@ const axis = document.getElementById("axis");
 const scale = document.getElementById("scale");
 const from = document.getElementById("from");
 const to = document.getElementById("to");
-let range = { low: [0, 0, 0], high: [1, 1, 1] };
+const light = document.getElementById("light");
+let range = { low: [0, 0, 0, 0], high: [1, 1, 1, 1] };
 
 function recolor() {
   document.getElementById("colorbar").style.background = gradient(scale.value);
@@ -30,8 +31,19 @@ function auto() {
   recolor();
 }
 
-function setRange(low, high) {
-  range = { low, high };
+function setRange(low, high, values) {
+  const dense = values.length === 2;
+  range = { low: [...low, ...values], high: [...high, ...values.slice(1)] };
+  axis.options[3].disabled = !dense;
+  light.disabled = !dense;
+  if (dense) {
+    axis.value = "3";
+    scale.value = "bone";
+  } else if (axis.value === "3") {
+    axis.value = "2";
+    scale.value = "turbo";
+  }
+  viewer.then(view => view.shade(light.checked));
   auto();
 }
 
@@ -40,6 +52,7 @@ axis.addEventListener("change", auto);
 scale.addEventListener("change", recolor);
 from.addEventListener("input", recolor);
 to.addEventListener("input", recolor);
+light.addEventListener("change", () => viewer.then(view => view.shade(light.checked)));
 document.getElementById("auto").addEventListener("click", auto);
 auto();
 
@@ -82,8 +95,8 @@ function describe(entries) {
   }));
 }
 
-function report(name, count, total, low, high, times, more) {
-  const megabytes = count * 6 / 1e6;
+function report(name, count, total, low, high, stride, times, more) {
+  const megabytes = count * stride * 2 / 1e6;
   const extent = high.map((v, i) => v - low[i]);
   const points = count < total ? `${count.toLocaleString("en")} of ${total.toLocaleString("en")}` : count.toLocaleString("en");
   describe([
@@ -154,27 +167,34 @@ async function showPoints(info, limit = budget, prepared = info.seconds) {
   download = new AbortController();
   const view = await viewer;
   const counts = [].concat(info.counts);
+  const bytes = info.stride * 2;
   const share = Math.min(1, limit / info.count);
-  const size = Math.ceil(info.count * share) * 6;
+  const size = Math.ceil(info.count * share) * bytes;
   const total = (size / 1e6).toFixed(1);
   const started = performance.now();
   let received = 0;
   let first = null;
   try {
-    view.begin(counts, info.low, info.high);
-    setRange(info.low, info.high);
-    await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * 6, Math.ceil(counts[part] * share) * 6, download.signal, (bytes, offset) => {
-      const drawn = view.append(part, bytes, offset);
+    const values = [].concat(info.values);
+    view.begin(counts, info.low, info.high, {
+      stride: info.stride,
+      values: values.length === 2 ? values : undefined,
+      space: info.space,
+      splat: info.spacing ? 0.6 * Math.max(...[].concat(info.spacing)) : 0
+    });
+    setRange(info.low, info.high, values);
+    await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * bytes, Math.ceil(counts[part] * share) * bytes, download.signal, (chunk, offset) => {
+      const drawn = view.append(part, chunk, offset);
       first ??= drawn.then(() => since(started));
-      received = Math.min(received + bytes.length, size);
+      received = Math.min(received + chunk.length, size);
       fill(received / size, `${info.name}: ${(received / 1e6).toFixed(1)} of ${total} MB`);
     })));
     const transferred = since(started);
     const milliseconds = await view.finish();
     const more = document.createElement("button");
-    more.textContent = `Load all ${(info.count * 6 / 1e6).toFixed(0)} MB`;
+    more.textContent = `Load all ${(info.count * bytes / 1e6).toFixed(0)} MB`;
     more.addEventListener("click", () => showPoints(info, Infinity, 0));
-    report(info.name, Math.min(view.loaded(), info.count), info.count, info.low, info.high, {
+    report(info.name, Math.min(view.loaded(), info.count), info.count, info.low, info.high, info.stride, {
       prepared,
       first: prepared + await first,
       transferred,
@@ -234,11 +254,11 @@ document.body.addEventListener("drop", async event => {
     const { low, high } = bounds(xyz);
     const prepared = since(started);
     view.begin([xyz.length / 3], low, high);
-    setRange(low, high);
+    setRange(low, high, []);
     view.append(0, new Uint8Array(quantize(xyz, low, high).buffer), 0);
     const milliseconds = await view.finish();
     const complete = since(started);
-    report(file.name, xyz.length / 3, xyz.length / 3, low, high, { prepared, first: complete, transferred: 0, complete, frame: milliseconds, gpu: view.gpu });
+    report(file.name, xyz.length / 3, xyz.length / 3, low, high, 3, { prepared, first: complete, transferred: 0, complete, frame: milliseconds, gpu: view.gpu });
   } catch (error) {
     done(error.message);
   }

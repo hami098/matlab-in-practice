@@ -61,14 +61,23 @@ function info = prepare(sample, folder, name)
 started = tic;
 switch sample.kind
     case "scan"
-        xyz = readPly(sample.file);
+        info = writePoints(readPly(sample.file), folder, name);
     case "ct"
-        [volume, spacing, slope, intercept] = readNifti(sample.file);
-        xyz = ctSurfacePoints(volume, spacing, (300 - intercept) / slope);
+        [volume, spacing, slope, intercept, world] = readNifti(sample.file);
+        [xyz, normal, density] = ctSurfacePoints(volume, spacing, (300 - intercept) / slope, (-400 - intercept) / slope);
+        space = '';
+        if ~isempty(world)
+            rotation = world(:, 1:3) ./ spacing;
+            xyz = xyz * rotation' + world(:, 4)';
+            normal = normal * rotation';
+            space = 'RAS';
+        end
+        info = writePoints(xyz, folder, name, normal, density * slope + intercept);
+        info.space = space;
+        info.spacing = spacing;
     case "synthetic"
-        xyz = syntheticCloud(sample.count);
+        info = writePoints(syntheticCloud(sample.count), folder, name);
 end
-info = writePoints(xyz, folder, name);
 info.name = char(sample.name);
 info.seconds = toc(started);
 end

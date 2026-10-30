@@ -1,4 +1,4 @@
-function [volume, spacing, slope, intercept] = readNifti(file)
+function [volume, spacing, slope, intercept, world] = readNifti(file)
 info = dir(file);
 machine = "l";
 fid = fopen(file, "r", machine);
@@ -20,6 +20,13 @@ pixdim = fread(fid, 8, "single")';
 offset = fread(fid, 1, "single");
 slope = fread(fid, 1, "single");
 intercept = fread(fid, 1, "single");
+fseek(fid, 254, "bof");
+code = fread(fid, 1, "int16");
+fseek(fid, 280, "bof");
+world = fread(fid, [4 3], "single")';
+if code <= 0
+    world = zeros(3, 0);
+end
 fseek(fid, 344, "bof");
 if ~startsWith(string(fread(fid, [1 4], "*char")), "n+1")
     error("readNifti:format", "%s is not a single file NIfTI-1 image.", file)

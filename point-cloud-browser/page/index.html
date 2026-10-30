@@ -26,10 +26,11 @@
 <section class="panel" id="color-panel" data-side="left">
 <header><span>Color</span><button title="Hide">&times;</button></header>
 <div id="coloring">
-<label>Color by <select id="axis"><option value="0">X</option><option value="1">Y</option><option value="2" selected>Z</option></select></label>
+<label>Color by <select id="axis"><option value="0">X</option><option value="1">Y</option><option value="2" selected>Z</option><option value="3" disabled>HU</option></select></label>
 <label>Scale <select id="scale"></select></label>
 <div id="colorbar"></div>
 <div id="range"><input id="from" type="number" step="any"><button id="auto">Auto</button><input id="to" type="number" step="any"></div>
+<label>Light <input id="light" type="checkbox" checked disabled></label>
 </div>
 </section>
 <section class="panel" id="details-panel" data-side="right">

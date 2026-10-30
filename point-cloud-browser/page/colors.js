@@ -4,7 +4,8 @@ const scales = {
   plasma: ["#0d0887", "#46039f", "#7201a8", "#9c179e", "#bd3786", "#d8576b", "#ed7953", "#fb9f3a", "#fdca26", "#f0f921"],
   cividis: ["#00224e", "#123570", "#3b496c", "#575d6d", "#707173", "#8a8779", "#a69d75", "#c4b56c", "#e4cf5b", "#fee838"],
   jet: ["#00007f", "#0000ff", "#007fff", "#00ffff", "#7fff7f", "#ffff00", "#ff7f00", "#ff0000", "#7f0000"],
-  gray: ["#3a3a3a", "#ffffff"]
+  gray: ["#3a3a3a", "#ffffff"],
+  bone: ["#8f6a4c", "#c09a72", "#ddc49d", "#efe3c8", "#fbf8f0"]
 };
 
 function table(name) {

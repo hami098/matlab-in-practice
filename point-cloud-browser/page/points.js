@@ -1,25 +1,57 @@
 const shader = `
-struct View { matrix: mat4x4f, low: vec4f, size: vec4f, pick: vec4f, span: vec4f }
+struct View { matrix: mat4x4f, low: vec4f, size: vec4f, pick: vec4f, span: vec4f, light: vec4f, splat: vec4f }
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<storage, read> words: array<u32>;
 @group(0) @binding(2) var<storage, read> colors: array<vec4f, 256>;
-struct Varying { @builtin(position) position: vec4f, @location(0) color: vec3f }
+struct Varying { @builtin(position) position: vec4f, @location(0) color: vec3f, @location(1) corner: vec2f }
 
-fn unit(i: u32) -> vec3f {
-  let base = i / 2u * 3u;
-  if (i % 2u == 0u) {
+fn unit(base: u32, odd: bool) -> vec3f {
+  if (!odd) {
     return vec3f(unpack2x16unorm(words[base]), unpack2x16unorm(words[base + 1u]).x);
   }
   return vec3f(unpack2x16unorm(words[base + 1u]).y, unpack2x16unorm(words[base + 2u]));
 }
 
+fn point(i: u32) -> Varying {
+  let stride = u32(view.low.w);
+  let base = i / 2u * stride;
+  let position = view.low.xyz + unit(base, i % 2u == 1u) * view.size.xyz;
+  var normal = vec3f(0.0);
+  var density = 0.0;
+  if (stride == 5u) {
+    let attributes = words[base + 3u + i % 2u];
+    normal = unpack4x8snorm(attributes).xyz;
+    density = mix(view.span.z, view.span.w, unpack4x8unorm(attributes).w);
+  }
+  let t = clamp((dot(vec4f(position, density), view.pick) - view.span.x) / (view.span.y - view.span.x), 0.0, 1.0);
+  var color = colors[u32(round(t * 255.0))].rgb;
+  if (view.light.w > 0.0) {
+    let facing = abs(dot(normal / max(length(normal), 1e-6), view.light.xyz));
+    color = color * (0.2 + 0.8 * facing) + vec3f(0.2 * pow(facing, 24.0));
+  }
+  return Varying(view.matrix * vec4f(position, 1.0), color, vec2f(0.0));
+}
+
 @vertex fn vertexMain(@builtin(vertex_index) i: u32) -> Varying {
-  let position = view.low.xyz + unit(i) * view.size.xyz;
-  let t = clamp((dot(position, view.pick.xyz) - view.span.x) / (view.span.y - view.span.x), 0.0, 1.0);
-  return Varying(view.matrix * vec4f(position, 1.0), colors[u32(round(t * 255.0))].rgb);
+  return point(i);
 }
 
 @fragment fn fragmentMain(input: Varying) -> @location(0) vec4f {
+  return vec4f(input.color, 1.0);
+}
+
+@vertex fn splatVertex(@builtin(vertex_index) v: u32) -> Varying {
+  var corners = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0), vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0));
+  var result = point(v / 6u);
+  result.corner = corners[v % 6u];
+  result.position = vec4f(result.position.xy + result.corner * max(view.splat.xy, view.splat.zw * result.position.w), result.position.zw);
+  return result;
+}
+
+@fragment fn splatFragment(input: Varying) -> @location(0) vec4f {
+  if (dot(input.corner, input.corner) > 1.0) {
+    discard;
+  }
   return vec4f(input.color, 1.0);
 }`;
 
@@ -95,6 +127,8 @@ function drawAxes(svg, rotation) {
     });
 }
 
+const lamp = (([x, y, z]) => [x, y, z].map(v => v / Math.hypot(x, y, z)))([-0.35, 0.45, 1]);
+
 async function createViewer(canvas, axes, onFrame) {
   const adapter = await navigator.gpu?.requestAdapter();
   if (!adapter) throw new Error("WebGPU is not available in this browser.");
@@ -105,17 +139,24 @@ async function createViewer(canvas, axes, onFrame) {
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format, alphaMode: "opaque" });
   const module = device.createShaderModule({ code: shader });
-  const pipeline = device.createRenderPipeline({
-    layout: "auto",
-    vertex: { module, entryPoint: "vertexMain" },
-    fragment: { module, entryPoint: "fragmentMain", targets: [{ format }] },
-    primitive: { topology: "point-list" },
+  const bindings = device.createBindGroupLayout({
+    entries: [0, 1, 2].map(binding => ({ binding, visibility: GPUShaderStage.VERTEX, buffer: { type: binding === 0 ? "uniform" : "read-only-storage" } }))
+  });
+  const layout = device.createPipelineLayout({ bindGroupLayouts: [bindings] });
+  const pipeline = (vertex, fragment, topology) => device.createRenderPipeline({
+    layout,
+    vertex: { module, entryPoint: vertex },
+    fragment: { module, entryPoint: fragment, targets: [{ format }] },
+    primitive: { topology },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" }
   });
-  const uniform = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const dots = pipeline("vertexMain", "fragmentMain", "point-list");
+  const splats = pipeline("splatVertex", "splatFragment", "triangle-list");
+  const uniform = device.createBuffer({ size: 160, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const colors = device.createBuffer({ size: 256 * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const start = combine(turn([1, 0, 0], 0.4), turn([0, 1, 0], -0.6));
-  const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1], pick: [0, 0, 1], span: [0, 1] };
+  const anterior = combine(turn([1, 0, 0], 0.15), combine(turn([0, 1, 0], 0.5), [0, Math.SQRT1_2, Math.SQRT1_2, 0]));
+  const camera = { home: start, rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1], stride: 3, values: [0, 1], pick: [0, 0, 1, 0], span: [0, 1], light: false, splat: 0 };
   let points = null;
   let bindGroup = null;
   let firsts = [];
@@ -134,22 +175,29 @@ async function createViewer(canvas, axes, onFrame) {
     }
     const near = camera.radius * 0.01;
     const far = camera.distance + camera.radius * 2;
+    const rotation = rotationMatrix(camera.rotation);
+    const projection = perspective(Math.PI / 4, width / height, near, far);
     const matrix = multiply(
-      perspective(Math.PI / 4, width / height, near, far),
+      projection,
       translation([0, 0, -camera.distance]),
-      rotationMatrix(camera.rotation),
+      rotation,
       translation(camera.center.map(v => -v))
     );
-    device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.low, 0, ...camera.size, 0, ...camera.pick, 0, ...camera.span, 0, 0]));
+    const light = [0, 1, 2].map(k => lamp.reduce((sum, v, row) => sum + v * rotation[k * 4 + row], 0));
+    device.queue.writeBuffer(uniform, 0, new Float32Array([
+      ...matrix, ...camera.low, camera.stride, ...camera.size, 0, ...camera.pick, ...camera.span, ...camera.values, ...light, camera.light && camera.stride === 5 ? 1 : 0,
+      projection[0] * camera.splat, projection[5] * camera.splat, 1.5 / width, 1.5 / height
+    ]));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0, 0, 0, 1], loadOp: "clear", storeOp: "store" }],
       depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard" }
     });
     if (bindGroup) {
-      pass.setPipeline(pipeline);
+      const corners = camera.splat > 0 ? 6 : 1;
+      pass.setPipeline(corners === 6 ? splats : dots);
       pass.setBindGroup(0, bindGroup);
-      filled.forEach((count, part) => count > 0 && pass.draw(count, 1, firsts[part]));
+      filled.forEach((count, part) => count > 0 && pass.draw(count * corners, 1, firsts[part] * corners));
     }
     pass.end();
     const submitted = performance.now();
@@ -171,7 +219,7 @@ async function createViewer(canvas, axes, onFrame) {
   }
 
   function reset() {
-    camera.rotation = start;
+    camera.rotation = camera.home;
     camera.distance = camera.radius * 2.5;
   }
 
@@ -197,7 +245,7 @@ async function createViewer(canvas, axes, onFrame) {
   });
   new ResizeObserver(redraw).observe(canvas);
 
-  function begin(counts, low, high) {
+  function begin(counts, low, high, { stride = 3, values = [0, 1], space = "", splat = 0 } = {}) {
     firsts = counts.map((_, part) => counts.slice(0, part).reduce((a, b) => a + b, 0));
     filled = counts.map(() => 0);
     const total = counts.reduce((a, b) => a + b, 0);
@@ -206,30 +254,43 @@ async function createViewer(canvas, axes, onFrame) {
     camera.size = high.map((v, i) => v - low[i]);
     camera.center = low.map((v, i) => (v + high[i]) / 2);
     camera.radius = Math.hypot(...camera.size) / 2 || 1;
-    if (!same) reset();
+    camera.stride = stride;
+    camera.values = values;
+    camera.splat = splat;
+    const home = space === "RAS" ? anterior : start;
+    if (!same || home !== camera.home) {
+      camera.home = home;
+      reset();
+    }
     points?.destroy();
-    points = device.createBuffer({ size: Math.max(Math.ceil(total * 6 / 4) * 4, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    points = device.createBuffer({ size: Math.max(Math.ceil(total * stride * 2 / 4) * 4, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     bindGroup = device.createBindGroup({
-      layout: pipeline.getBindGroupLayout(0),
+      layout: bindings,
       entries: [{ binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: { buffer: points } }, { binding: 2, resource: { buffer: colors } }]
     });
     return redraw();
   }
 
   function append(part, bytes, offset) {
-    device.queue.writeBuffer(points, firsts[part] * 6 + offset, bytes);
-    filled[part] = Math.floor((offset + bytes.byteLength) / 6);
+    device.queue.writeBuffer(points, firsts[part] * camera.stride * 2 + offset, bytes);
+    const end = offset + bytes.byteLength;
+    filled[part] = camera.stride === 3 ? Math.floor(end / 6) : Math.floor(end / 20) * 2;
     return redraw();
   }
 
   const loaded = () => filled.reduce((a, b) => a + b, 0);
 
   function paint(axis, rgba, span) {
-    camera.pick = [0, 1, 2].map(k => k === axis ? 1 : 0);
+    camera.pick = [0, 1, 2, 3].map(k => k === axis ? 1 : 0);
     camera.span = span;
     device.queue.writeBuffer(colors, 0, rgba);
     return redraw();
   }
 
-  return { begin, append, loaded, paint, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
+  function shade(on) {
+    camera.light = on;
+    return redraw();
+  }
+
+  return { begin, append, loaded, paint, shade, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
 }
