@@ -15,7 +15,7 @@ Click a row.
 - **Panels:** the icons at the top right open and close **Color** and **Details**. Drag a panel by its title; panels stop at each other's edges.
 - **Color:** the axis that sets the color and the scale. The range starts at the cloud's minimum and maximum and can be typed in; points outside it take the end colors; **Auto** restores it.
 - **Details:** points, size, extent, timings, frame time, GPU. At most 4 million points come first, an even sample of the whole cloud; **Load all** brings the rest.
-- **Progress:** the bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. Each load prints its timings in the Command Window.
+- **Progress:** the bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer and deletes the files of the previous load, so the temporary folder holds one load at most (seven loads used to leave 687 MB until the window closed). Each load prints its timings in the Command Window.
 
 The table lists generated tori (1, 10 and 50 million points), the files in [demo-data](../demo-data) and, when downloaded, the full data sets in `cache` ([open-data](../open-data)).
 
@@ -77,13 +77,15 @@ Faster readers then brought the truck scan from 0.63 s to 0.24 s and the largest
 
 Writing the progressive order with 64 strided copies cost 1.56 s for 50M points; one `permute` costs 0.49 s, against 0.33 s for the plain transpose that any interleaved write needs.
 
-MATLAB Online, Chrome 156, over the internet, before the optimizations:
+### MATLAB Online
 
-| Sample | Points | Prepared | Transferred |
+Chrome 156 over the internet, where the transfer runs at 3 to 11 MB/s; the MATLAB Online machine had 8 workers.
+
+| Sample | Before the optimizations, complete | After: first picture | After: complete |
 |---|---|---|---|
-| demo motorcycle | 35,000 | 0.06 s | 0.23 s |
-| torus 1M | 1,000,000 | 0.03 to 0.06 s | 1.9 to 4.1 s |
-| torus 10M | 10,000,000 | 0.28 to 0.29 s | 12.0 to 19.4 s |
-| torus 50M | 50,000,000 | 1.43 s | 54.2 s |
+| demo motorcycle | 0.29 s | 0.21 s | 0.56 s |
+| torus 1M | 1.9 to 4.2 s | 0.42 s | 1.15 s |
+| torus 10M | 12.3 to 19.7 s | 0.62 s | 2.96 s, 4.0M shown |
+| torus 50M | 55.6 s | 2.49 s | 5.41 s, 4.0M shown |
 
-There the transfer runs at 3 to 11 MB/s and decides everything.
+A long MATLAB Online session grew slow, and the browser console showed MATLAB Online's own file panel timing out; a new session (`exit`, then reload) brought the numbers above back.
