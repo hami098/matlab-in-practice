@@ -37,30 +37,23 @@ served = 0;
 end
 
 function samples = findSamples(root)
-samples = struct(id={}, name={}, kind={}, source={}, megabytes={}, count={}, file={});
-for count = [1e6 1e7 5e7]
-    samples(end + 1) = struct(id=numel(samples) + 1, name=sprintf("torus %dM", count / 1e6), kind="synthetic", ...
-        source="generated", megabytes=12 * count / 1e6, count=count, file="");
-end
 files = [dir(fullfile(root, "demo-data", "*.ply")); dir(fullfile(root, "demo-data", "*.nii"))
-    dir(fullfile(root, "cache", "redwood", "*.ply")); dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii"))];
-for f = files'
-    [~, subject] = fileparts(f.folder);
-    name = extractBefore(string(f.name), ".");
-    if f.name == "ct.nii"
-        name = string(subject);
-    end
-    kind = "ct";
-    if endsWith(f.name, ".ply")
-        kind = "scan";
-    end
-    source = "cache";
-    if contains(f.folder, "demo-data")
-        source = "demo";
-    end
-    samples(end + 1) = struct(id=numel(samples) + 1, name=name, kind=kind, source=source, ...
-        megabytes=f.bytes / 1e6, count=NaN, file=string(fullfile(f.folder, f.name)));
-end
+    dir(fullfile(root, "cache", "redwood", "*.ply")); dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii"))]';
+folders = string({files.folder});
+fileNames = string({files.name});
+[~, subjects] = fileparts(folders);
+names = extractBefore(fileNames, ".");
+names(fileNames == "ct.nii") = subjects(fileNames == "ct.nii");
+kinds = repmat("ct", size(names));
+kinds(endsWith(fileNames, ".ply")) = "scan";
+sources = repmat("cache", size(names));
+sources(contains(folders, "demo-data")) = "demo";
+generated = [1e6 1e7 5e7];
+names = [compose("torus %dM", generated / 1e6) names];
+samples = struct(id=num2cell(1:numel(names)), name=num2cell(names), ...
+    kind=num2cell([repmat("synthetic", 1, 3) kinds]), source=num2cell([repmat("generated", 1, 3) sources]), ...
+    megabytes=num2cell([12 * generated / 1e6, [files.bytes] / 1e6]), count=num2cell([generated NaN(size(files))]), ...
+    file=num2cell([strings(1, 3) fullfile(folders, fileNames)]));
 end
 
 function info = prepare(sample, folder, name)

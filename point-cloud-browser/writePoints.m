@@ -4,18 +4,15 @@ high = max(xyz, [], 1);
 quantized = uint16((xyz - low) .* (65535 ./ max(high - low, eps("single"))));
 whole = 64 * floor(size(quantized, 1) / 64);
 ordered = permute(reshape(quantized(1:whole, :), 64, [], 3), [3 2 1]);
-urls = strings(1, 4);
-counts = zeros(1, 4);
+urls = name + "-" + (1:4) + ".bin";
+counts = whole / 4 * [1 1 1 1] + [0 0 0 size(quantized, 1) - whole];
 for k = 1:4
-    block = reshape(ordered(:, :, 16 * k - 15:16 * k), 3, []);
-    if k == 4
-        block = [block quantized(whole + 1:end, :).'];
-    end
-    urls(k) = name + "-" + k + ".bin";
     fid = fopen(fullfile(folder, urls(k)), "w");
-    fwrite(fid, block, "uint16", 0, "l");
+    fwrite(fid, ordered(:, :, 16 * k - 15:16 * k), "uint16", 0, "l");
+    if k == 4
+        fwrite(fid, quantized(whole + 1:end, :).', "uint16", 0, "l");
+    end
     fclose(fid);
-    counts(k) = size(block, 2);
 end
 info = struct(urls=urls, counts=counts, count=size(xyz, 1), low=low, high=high);
 end

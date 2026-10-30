@@ -32,6 +32,7 @@ Each folder's README names its function and explains the result.
 ## Rules
 
 - One folder, one question. Each folder has a README; the code has no comments.
+- MATLAB's Code Analyzer (`codeIssues`) reports nothing.
 - MATLAB alone, open source code, openly licensed data. Only demo files under 512 KB are committed.
 - Pages use WebGPU and WebGL2 directly, with no framework, and never depend on MATLAB.
 - A choice stays only if a measurement supports it.
