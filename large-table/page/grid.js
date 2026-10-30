@@ -67,6 +67,7 @@ function createGrid(root, columns, rowHeight, hooks) {
   }, { passive: false });
 
   root.addEventListener("keydown", event => {
+    if (event.target.closest("input")) return;
     const moves = { ArrowDown: 1, ArrowUp: -1, PageDown: visible(), PageUp: -visible(), Home: -Infinity, End: Infinity };
     if (!(event.key in moves)) return;
     event.preventDefault();
@@ -96,6 +97,16 @@ function createGrid(root, columns, rowHeight, hooks) {
       schedule();
     },
     refresh: schedule,
+    grow(count) {
+      const atTop = top < 0.5;
+      rows += count;
+      if (!atTop) top += count;
+      schedule();
+      return atTop;
+    },
+    home() {
+      scrollTo(0);
+    },
     mark(key, direction) {
       for (const cell of head.children) cell.dataset.sort = cell.dataset.key === key ? direction : "";
     }
