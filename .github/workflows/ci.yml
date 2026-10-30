@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No secrets and no data, refused by name
+        run: |
+          blocked="$(git ls-files | sh .githooks/forbidden-files.sh)" || true
+          if [ -n "$blocked" ]; then
+            echo "these never enter this repository:"
+            printf '%s\n' "$blocked"
+            exit 1
+          fi
+      - name: No en or em dashes
+        run: |
+          en_dash="$(printf '\342\200\223')"
+          em_dash="$(printf '\342\200\224')"
+          if git grep -n -I -F -e "$en_dash" -e "$em_dash"; then
+            echo "en and em dashes are not used in this repository"
+            exit 1
+          fi
+      - name: No file over 512 KB
+        run: |
+          large="$(git ls-files -z | xargs -0 -I{} sh -c 'size=$(git cat-file -s ":{}"); [ "$size" -gt 524288 ] && echo "{} ($size bytes)"' || true)"
+          if [ -n "$large" ]; then
+            echo "files over 512 KB are data, not repository content:"
+            printf '%s\n' "$large"
+            exit 1
+          fi
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan over the whole history
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

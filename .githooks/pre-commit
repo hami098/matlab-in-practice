@@ -1,0 +1,40 @@
+#!/bin/sh
+fail() {
+  echo "pre-commit: $1" >&2
+  [ -n "$2" ] && printf '%s\n' "$2" | sed 's/^/  /' >&2
+  exit 1
+}
+
+en_dash="$(printf '\342\200\223')"
+em_dash="$(printf '\342\200\224')"
+dashes="$(git grep --cached -n -I -F -e "$en_dash" -e "$em_dash")"
+case $? in
+  0) fail "en and em dashes are not used in this repository:" "$dashes" ;;
+  1) ;;
+  *) fail "the dash check could not run; refusing to commit." ;;
+esac
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+blocked="$(printf '%s\n' "$staged" | sh .githooks/forbidden-files.sh)"
+[ -n "$blocked" ] && fail "these never enter this repository:" "$blocked"
+
+large=""
+while IFS= read -r path; do
+  [ -z "$path" ] && continue
+  size="$(git cat-file -s ":$path" 2>/dev/null)" || fail "could not read the staged size of $path."
+  [ "$size" -gt 524288 ] && large="$large$path ($size bytes)
+"
+done <<END
+$staged
+END
+[ -n "$large" ] && fail "files over 512 KB are data, not repository content:" "$large"
+
+GITLEAKS="$(command -v gitleaks 2>/dev/null)"
+if [ -z "$GITLEAKS" ] && [ -n "$LOCALAPPDATA" ] \
+  && [ -x "$LOCALAPPDATA/Microsoft/WinGet/Links/gitleaks.exe" ]; then
+  GITLEAKS="$LOCALAPPDATA/Microsoft/WinGet/Links/gitleaks.exe"
+fi
+[ -z "$GITLEAKS" ] && fail "gitleaks is not installed; refusing to commit. Windows: winget install Gitleaks.Gitleaks"
+
+exec "$GITLEAKS" git --pre-commit --staged --redact

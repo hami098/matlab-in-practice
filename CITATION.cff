@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use or build on this work, please cite it as below."
+type: software
+title: "matlab-in-practice"
+abstract: "Large 3D point clouds in MATLAB with a responsive HTML interface: background loading, binary transfer and WebGL rendering, written from scratch and measured."
+authors:
+  - family-names: "Bilir"
+    given-names: "Hami Bahadır"
+repository-code: "https://github.com/hami098/matlab-in-practice"
+license: MIT
+keywords:
+  - MATLAB
+  - point cloud
+  - uihtml
+  - WebGL
+  - parallel computing
