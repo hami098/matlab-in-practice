@@ -17,16 +17,17 @@ function move(panel, left, top) {
 function home(panel) {
   const area = panel.parentElement;
   const tools = document.getElementById("tools");
-  const left = panel.dataset.side === "right" ? area.clientWidth - panel.offsetWidth - 12 : 12;
-  const top = panel.dataset.side === "right" ? tools.offsetTop + tools.offsetHeight + 8 : 12;
-  panel.style.left = `${left}px`;
+  const right = panel.dataset.side === "right";
+  const above = obstacles(panel).filter(other => other.dataset.side === panel.dataset.side);
+  const top = Math.max(right ? tools.offsetTop + tools.offsetHeight + 8 : 12, ...above.map(other => other.offsetTop + other.offsetHeight + 8));
+  panel.style.left = `${right ? area.clientWidth - panel.offsetWidth - 12 : 12}px`;
   panel.style.top = `${top}px`;
 }
 
 function show(panel, visible) {
   panel.hidden = !visible;
   document.querySelector(`#tools [data-panel="${panel.id}"]`).classList.toggle("active", visible);
-  if (visible && overlaps(panel, panel.offsetLeft, panel.offsetTop)) home(panel);
+  if (visible && (!panel.style.left || overlaps(panel, panel.offsetLeft, panel.offsetTop))) home(panel);
 }
 
 for (const panel of document.querySelectorAll(".panel")) {
@@ -43,8 +44,8 @@ for (const panel of document.querySelectorAll(".panel")) {
   header.addEventListener("lostpointercapture", () => start = null);
   header.querySelector("button").addEventListener("click", () => show(panel, false));
   document.querySelector(`#tools [data-panel="${panel.id}"]`).addEventListener("click", () => show(panel, panel.hidden));
-  home(panel);
-  show(panel, true);
+  if (!panel.hidden) home(panel);
+  show(panel, !panel.hidden);
 }
 
 function settle(panel) {

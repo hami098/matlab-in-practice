@@ -26,9 +26,14 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .panel > header button:hover { background: #222631; }
 #color-panel { width: 244px; }
 #details-panel { width: 280px; }
-#details { margin: 0; padding: 8px 12px; display: grid; grid-template-columns: auto auto; gap: 2px 16px; }
-#details dt { color: #8b92a3; }
-#details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#measure-panel { width: 244px; }
+.panel dl { margin: 0; padding: 8px 12px; display: grid; grid-template-columns: auto auto; gap: 2px 16px; }
+.panel dt { color: #8b92a3; }
+.panel dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#ruler { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#ruler line { stroke: #fff; stroke-width: 1.5; }
+#ruler circle { fill: #4c8dff; stroke: #fff; stroke-width: 1.5; }
+#ruler text { fill: #fff; font-size: 13px; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: #000; stroke-width: 3px; }
 #details button { font: inherit; color: inherit; background: #2d3a55; border: 1px solid #4c8dff; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
 #coloring { padding: 8px 12px; display: grid; gap: 6px; }
 #coloring label { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #8b92a3; }

@@ -66,15 +66,18 @@ switch sample.kind
         [volume, spacing, slope, intercept, world] = readNifti(sample.file);
         [xyz, normal, density] = ctSurfacePoints(volume, spacing, (300 - intercept) / slope, (-400 - intercept) / slope);
         space = '';
+        voxel = spacing;
         if ~isempty(world)
             rotation = world(:, 1:3) ./ spacing;
             xyz = xyz * rotation' + world(:, 4)';
             normal = normal * rotation';
+            voxel = spacing * abs(rotation)';
             space = 'RAS';
         end
         info = writePoints(xyz, folder, name, normal, density * slope + intercept);
         info.space = space;
-        info.spacing = spacing;
+        info.voxel = voxel;
+        info.unit = 'mm';
     case "synthetic"
         info = writePoints(syntheticCloud(sample.count), folder, name);
 end

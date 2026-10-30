@@ -21,10 +21,13 @@ for d = 1:3
 end
 steepness = sqrt(sum(rise .^ 2, 2));
 normal = -rise ./ max(steepness, eps("single"));
-offset = min(max((value - threshold) ./ max(steepness, eps("single")), 0), 0.5 * min(spacing)) .* normal;
-xyz = single(ijk - 1) .* single(spacing) + offset;
 toward = round(rise .* single(spacing) ./ max(abs(rise .* single(spacing)), [], 2));
 toward(isnan(toward)) = 0;
 inner = min(max(ijk + double(toward), 1), shape);
+outer = min(max(ijk - double(toward), 1), shape);
 density = max(value, single(volume(sub2ind(shape, inner(:, 1), inner(:, 2), inner(:, 3)))));
+outside = min(value, single(volume(sub2ind(shape, outer(:, 1), outer(:, 2), outer(:, 3)))));
+reach = min(spacing);
+offset = min(max((value - (density + outside) / 2) ./ max(steepness, eps("single")), -reach), reach) .* normal;
+xyz = single(ijk - 1) .* single(spacing) + offset;
 end

@@ -12,9 +12,10 @@ pointCloudBrowser
 Click a row.
 
 - **View:** drag to rotate in any direction, scroll to zoom, double-click to reset. A drag that starts outside the view never turns the cloud. The axes in the corner are the cloud's own X, Y and Z.
-- **Panels:** the icons at the top right open and close **Color** and **Details**. Drag a panel by its title; panels stop at each other's edges.
+- **Panels:** the icons at the top right open and close **Color**, **Measure** and **Details**. Drag a panel by its title; panels stop at each other's edges.
 - **Color:** the axis that sets the color and the scale. The range starts at the cloud's minimum and maximum and can be typed in; points outside it take the end colors; **Auto** restores it.
 - **CT:** opens upright and facing you, colored by density (HU) on the Bone scale and lit from the camera; **Light** turns the shading off. See [Bone](#bone).
+- **Measure:** open it and click two points for the distance between them and its margin. See [Measure](#measure).
 - **Details:** points, size, extent, timings, frame time, GPU. At most 4 million points come first, an even sample of the whole cloud; **Load all** brings the rest.
 - **Progress:** the bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer and deletes the files of the previous load, so the temporary folder holds one load at most (seven loads used to leave 687 MB until the window closed). Each load prints its timings in the Command Window.
 
@@ -39,7 +40,8 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 | `insideBody.m` | which voxels lie inside the body: the CT sampled every 4.5 mm, above a level (-400 HU), opened by one sample, so the table and cables fall away |
 | `syntheticCloud.m` | random points on a torus |
 | `writePoints.m` | any N by 3 array to the four files the page reads, and the bounds and counts it needs; with normals and values, one more 32-bit word a point; usable on its own |
-| `page/points.js` | the WebGPU viewer: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color from a 256-entry table indexed by the chosen axis or the density within the chosen range, light from the camera, discs for CT points, a trackball camera kept as a quaternion so it turns freely, the axes |
+| `page/points.js` | the WebGPU viewer and its picking: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color from a 256-entry table indexed by the chosen axis or the density within the chosen range, light from the camera, discs for CT points, a trackball camera kept as a quaternion so it turns freely, the axes |
+| `page/measure.js` | the ruler: the clicks, the length and its margin, the marks over the view |
 | `page/panels.js` | the panels: opened and closed from the toolbar, dragged by the title inside the view, never on top of each other |
 | `page/colors.js` | the color scales (Turbo, Viridis, Plasma, Cividis, Jet, Gray, Bone) as stops, turned into the 256-entry table and the CSS gradient of the color bar; changing the scale rewrites only that 4 KB table |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files that scales them the same way |
@@ -52,7 +54,7 @@ A CT holds one density per voxel in Hounsfield units (HU): air -1000, fat about 
 
 1. **Threshold.** Bone is every voxel at 300 HU or more; its surface is the bone voxels with a neighbor below 300 HU.
 2. **Inside the body.** The patient table, cables and electrodes on the skin pass 300 HU too. `insideBody` marks the voxels above -400 HU on a grid every 4.5 mm, removes one grid step from the outside of that mask and adds it back: objects thinner than about 9 mm, such as the table top and cables, disappear, and the body returns to its shape. Surface voxels outside it are dropped.
-3. **Normal and position.** The density rises fastest into the bone; that direction, from the six neighbors, gives the normal. Each point moves along it to where the density crosses 300 HU, at most half a voxel, so the voxel steps do not show.
+3. **Normal and edge.** The density rises fastest into the bone; that direction, from the six neighbors, gives the normal. A scanner blurs every edge, and a blurred edge lies where the density is halfway between its two sides. So each point moves along its normal to where the density is halfway between the bone one voxel deeper and what lies one voxel outside, at most one voxel; the 300 HU threshold only decides which voxels are bone. This also hides the voxel steps.
 4. **Density.** The higher of the voxel's own and that of its neighbor one voxel deeper, so thick cortical bone reads white and thin bone darker.
 5. **Patient coordinates.** The transform in the NIfTI header turns voxels into millimeters in patient coordinates: x to the patient's right, y to the front, z up (RAS). The page opens such a CT upright and facing you.
 6. **Drawing.** Each point carries its normal and density in one more 32-bit word, 10 bytes a point. The page colors it by density on the Bone scale, lights it from the camera, and draws it as a disc 1.2 voxels wide, six vertices a point in one draw call, so the surface stays closed when zoomed in. Scans and tori stay one pixel a point: 50 million discs would be 300 million vertices.
@@ -68,6 +70,27 @@ Checked against the bone labels that come with TotalSegmentator (skull, vertebra
 | 300 HU | yes | 0.93, 0.73 to 0.98 | 0.95, 0.85 to 0.98 |
 
 Above 300 HU the threshold loses bone faster than it drops other things; the body mask lifted the trauma scans, where the patient lies on a board, from 0.52 to 0.73, 0.66 to 0.81 and 0.71 to 0.83, and cost at most 0.016 of the found bone. What remains is partly real bone without a label in this set, such as the forearms, partly contrast filled aorta and heart (up to 10 % of the points in contrast scans), calcified rib cartilage, and the part of the table the head rests on.
+
+## Measure
+
+Open **Measure** and click two points; a click takes the point drawn nearest to it within 8 pixels. A third click starts a new pair; closing the panel clears it.
+
+- **Picking.** The page draws the 16 by 16 pixels around the click once more into a small 32-bit float texture, each point writing its own coordinates instead of a color, with the same depth test, and reads those 256 values back. A picked point matched a stored point to within 0.00001 mm.
+- **Length.** The straight distance between the two points: in millimeters for a CT, from the voxel size in the header (TotalSegmentator leaves the unit code unset, which by common use means millimeters); in the file's own units for a PLY, which records none.
+- **Margin.** Each end is known to within half a voxel along each axis, the CT's sampling, and half a 16-bit step, the storage. The margin is the most these can change the length along the line: the sum over x, y and z of the line's share of that axis times the voxel size plus the 16-bit step. A PLY records no scanner accuracy, so its margin is the storage alone, and the panel says so.
+
+Checked on a synthetic CT with a known answer: a sphere 100 mm across, each voxel the average of 64 samples and then blurred with a 1 2 1 filter in each direction, as a scanner blurs. Its width was measured along 203 directions, x, y, z and 200 random ones:
+
+| Voxels | Bone | Width error, median | Lowest to highest | Margin | Within the margin |
+|---|---|---|---|---|---|
+| 1.5 mm | 1000 HU | +0.06 mm | -0.50 to +0.49 mm | 1.50 to 2.60 mm | 203 of 203 |
+| 1.5 mm | 1500 HU | +0.24 mm | -0.14 to +0.92 mm | 1.50 to 2.60 mm | 203 of 203 |
+| 2.5 mm | 1000 HU | -0.03 mm | -1.22 to +0.71 mm | 2.50 to 4.33 mm | 203 of 203 |
+| 0.8 x 0.8 x 3 mm | 1000 HU | +0.43 mm | -0.50 to +0.84 mm | 0.80 to 3.20 mm | 203 of 203 |
+
+With the points on the 300 HU level instead, the width came out larger by a median of 1.25 to 2.00 mm, and at 1500 HU 32 of 203 widths fell outside the margin: on bright bone the 300 HU level lies outside the edge. Hence the halfway edge in [Bone](#bone).
+
+The margin covers what the voxels and the storage allow. It does not cover noise, motion or metal artifacts in the scan.
 
 ## Measured
 

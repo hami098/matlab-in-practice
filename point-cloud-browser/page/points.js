@@ -1,9 +1,9 @@
 const shader = `
-struct View { matrix: mat4x4f, low: vec4f, size: vec4f, pick: vec4f, span: vec4f, light: vec4f, splat: vec4f }
+struct View { matrix: mat4x4f, low: vec4f, size: vec4f, channel: vec4f, span: vec4f, light: vec4f, splat: vec4f }
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<storage, read> words: array<u32>;
 @group(0) @binding(2) var<storage, read> colors: array<vec4f, 256>;
-struct Varying { @builtin(position) position: vec4f, @location(0) color: vec3f, @location(1) corner: vec2f }
+struct Varying { @builtin(position) position: vec4f, @location(0) color: vec3f, @location(1) corner: vec2f, @location(2) @interpolate(flat) world: vec3f }
 
 fn unit(base: u32, odd: bool) -> vec3f {
   if (!odd) {
@@ -23,13 +23,13 @@ fn point(i: u32) -> Varying {
     normal = unpack4x8snorm(attributes).xyz;
     density = mix(view.span.z, view.span.w, unpack4x8unorm(attributes).w);
   }
-  let t = clamp((dot(vec4f(position, density), view.pick) - view.span.x) / (view.span.y - view.span.x), 0.0, 1.0);
+  let t = clamp((dot(vec4f(position, density), view.channel) - view.span.x) / (view.span.y - view.span.x), 0.0, 1.0);
   var color = colors[u32(round(t * 255.0))].rgb;
   if (view.light.w > 0.0) {
     let facing = abs(dot(normal / max(length(normal), 1e-6), view.light.xyz));
     color = color * (0.2 + 0.8 * facing) + vec3f(0.2 * pow(facing, 24.0));
   }
-  return Varying(view.matrix * vec4f(position, 1.0), color, vec2f(0.0));
+  return Varying(view.matrix * vec4f(position, 1.0), color, vec2f(0.0), position);
 }
 
 @vertex fn vertexMain(@builtin(vertex_index) i: u32) -> Varying {
@@ -53,6 +53,17 @@ fn point(i: u32) -> Varying {
     discard;
   }
   return vec4f(input.color, 1.0);
+}
+
+@fragment fn pickFragment(input: Varying) -> @location(0) vec4f {
+  return vec4f(input.world, 1.0);
+}
+
+@fragment fn pickSplatFragment(input: Varying) -> @location(0) vec4f {
+  if (dot(input.corner, input.corner) > 1.0) {
+    discard;
+  }
+  return vec4f(input.world, 1.0);
 }`;
 
 function perspective(fovy, aspect, near, far) {
@@ -143,26 +154,99 @@ async function createViewer(canvas, axes, onFrame) {
     entries: [0, 1, 2].map(binding => ({ binding, visibility: GPUShaderStage.VERTEX, buffer: { type: binding === 0 ? "uniform" : "read-only-storage" } }))
   });
   const layout = device.createPipelineLayout({ bindGroupLayouts: [bindings] });
-  const pipeline = (vertex, fragment, topology) => device.createRenderPipeline({
+  const pipeline = (vertex, fragment, topology, target = format) => device.createRenderPipeline({
     layout,
     vertex: { module, entryPoint: vertex },
-    fragment: { module, entryPoint: fragment, targets: [{ format }] },
+    fragment: { module, entryPoint: fragment, targets: [{ format: target }] },
     primitive: { topology },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" }
   });
-  const dots = pipeline("vertexMain", "fragmentMain", "point-list");
-  const splats = pipeline("splatVertex", "splatFragment", "triangle-list");
+  const shown = { dots: pipeline("vertexMain", "fragmentMain", "point-list"), splats: pipeline("splatVertex", "splatFragment", "triangle-list") };
+  const picked = { dots: pipeline("vertexMain", "pickFragment", "point-list", "rgba32float"), splats: pipeline("splatVertex", "pickSplatFragment", "triangle-list", "rgba32float") };
   const uniform = device.createBuffer({ size: 160, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const pickUniform = device.createBuffer({ size: 160, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const pickTarget = device.createTexture({ size: [16, 16], format: "rgba32float", usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+  const pickDepth = device.createTexture({ size: [16, 16], format: "depth24plus", usage: GPUTextureUsage.RENDER_ATTACHMENT });
+  const pickRead = device.createBuffer({ size: 256 * 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
   const colors = device.createBuffer({ size: 256 * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const start = combine(turn([1, 0, 0], 0.4), turn([0, 1, 0], -0.6));
   const anterior = combine(turn([1, 0, 0], 0.15), combine(turn([0, 1, 0], 0.5), [0, Math.SQRT1_2, Math.SQRT1_2, 0]));
-  const camera = { home: start, rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1], stride: 3, values: [0, 1], pick: [0, 0, 1, 0], span: [0, 1], light: false, splat: 0 };
+  const camera = { home: start, rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1], stride: 3, values: [0, 1], channel: [0, 0, 1, 0], span: [0, 1], light: false, splat: 0 };
   let points = null;
   let bindGroup = null;
+  let pickGroup = null;
+  let matrix = null;
+  let picking = Promise.resolve(null);
+  const watchers = [];
   let firsts = [];
   let filled = [];
   let depth = null;
   let pending = null;
+
+  function settings(width, height, at = null) {
+    const near = camera.radius * 0.01;
+    const far = camera.distance + camera.radius * 2;
+    const rotation = rotationMatrix(camera.rotation);
+    const projection = perspective(Math.PI / 4, width / height, near, far);
+    const view = multiply(projection, translation([0, 0, -camera.distance]), rotation, translation(camera.center.map(v => -v)));
+    const light = [0, 1, 2].map(k => lamp.reduce((sum, v, row) => sum + v * rotation[k * 4 + row], 0));
+    let splat = [projection[0] * camera.splat, projection[5] * camera.splat, 1.5 / width, 1.5 / height];
+    let used = view;
+    if (at) {
+      const scale = [width / 16, height / 16];
+      const ndc = [at[0] / width * 2 - 1, 1 - at[1] / height * 2];
+      used = multiply([scale[0], 0, 0, 0, 0, scale[1], 0, 0, 0, 0, 1, 0, -ndc[0] * scale[0], -ndc[1] * scale[1], 0, 1], view);
+      splat = [splat[0] * scale[0], splat[1] * scale[1], 1.5 / 16, 1.5 / 16];
+    } else {
+      matrix = view;
+    }
+    return new Float32Array([
+      ...used, ...camera.low, camera.stride, ...camera.size, 0, ...camera.channel, ...camera.span, ...camera.values, ...light, camera.light && camera.stride === 5 ? 1 : 0, ...splat
+    ]);
+  }
+
+  function drawPoints(pass, pipelines, group) {
+    if (!group) return;
+    const corners = camera.splat > 0 ? 6 : 1;
+    pass.setPipeline(corners === 6 ? pipelines.splats : pipelines.dots);
+    pass.setBindGroup(0, group);
+    filled.forEach((count, part) => count > 0 && pass.draw(count * corners, 1, firsts[part] * corners));
+  }
+
+  async function nearest(x, y) {
+    device.queue.writeBuffer(pickUniform, 0, settings(canvas.width, canvas.height, [x, y]));
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{ view: pickTarget.createView(), clearValue: [0, 0, 0, 0], loadOp: "clear", storeOp: "store" }],
+      depthStencilAttachment: { view: pickDepth.createView(), depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard" }
+    });
+    drawPoints(pass, picked, pickGroup);
+    pass.end();
+    encoder.copyTextureToBuffer({ texture: pickTarget }, { buffer: pickRead, bytesPerRow: 256 }, [16, 16]);
+    device.queue.submit([encoder.finish()]);
+    await pickRead.mapAsync(GPUMapMode.READ);
+    const texels = new Float32Array(pickRead.getMappedRange().slice(0));
+    pickRead.unmap();
+    let best = null;
+    let distance = Infinity;
+    for (let k = 0; k < 256; k++) {
+      const away = Math.hypot(k % 16 + 0.5 - 8, Math.floor(k / 16) + 0.5 - 8);
+      if (texels[k * 4 + 3] > 0 && away < distance) {
+        distance = away;
+        best = [...texels.subarray(k * 4, k * 4 + 3)];
+      }
+    }
+    return best;
+  }
+
+  const pick = (x, y) => picking = picking.catch(() => null).then(() => nearest(x, y));
+
+  function project(point) {
+    if (!matrix) return null;
+    const clip = [0, 1, 2, 3].map(row => matrix[row] * point[0] + matrix[4 + row] * point[1] + matrix[8 + row] * point[2] + matrix[12 + row]);
+    if (clip[3] <= 0) return null;
+    return [(clip[0] / clip[3] + 1) / 2 * canvas.clientWidth, (1 - clip[1] / clip[3]) / 2 * canvas.clientHeight];
+  }
 
   function draw() {
     const width = Math.max(1, Math.round(canvas.clientWidth * devicePixelRatio));
@@ -173,36 +257,18 @@ async function createViewer(canvas, axes, onFrame) {
       depth?.destroy();
       depth = device.createTexture({ size: [width, height], format: "depth24plus", usage: GPUTextureUsage.RENDER_ATTACHMENT });
     }
-    const near = camera.radius * 0.01;
-    const far = camera.distance + camera.radius * 2;
-    const rotation = rotationMatrix(camera.rotation);
-    const projection = perspective(Math.PI / 4, width / height, near, far);
-    const matrix = multiply(
-      projection,
-      translation([0, 0, -camera.distance]),
-      rotation,
-      translation(camera.center.map(v => -v))
-    );
-    const light = [0, 1, 2].map(k => lamp.reduce((sum, v, row) => sum + v * rotation[k * 4 + row], 0));
-    device.queue.writeBuffer(uniform, 0, new Float32Array([
-      ...matrix, ...camera.low, camera.stride, ...camera.size, 0, ...camera.pick, ...camera.span, ...camera.values, ...light, camera.light && camera.stride === 5 ? 1 : 0,
-      projection[0] * camera.splat, projection[5] * camera.splat, 1.5 / width, 1.5 / height
-    ]));
+    device.queue.writeBuffer(uniform, 0, settings(width, height));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0, 0, 0, 1], loadOp: "clear", storeOp: "store" }],
       depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard" }
     });
-    if (bindGroup) {
-      const corners = camera.splat > 0 ? 6 : 1;
-      pass.setPipeline(corners === 6 ? splats : dots);
-      pass.setBindGroup(0, bindGroup);
-      filled.forEach((count, part) => count > 0 && pass.draw(count * corners, 1, firsts[part] * corners));
-    }
+    drawPoints(pass, shown, bindGroup);
     pass.end();
     const submitted = performance.now();
     device.queue.submit([encoder.finish()]);
     drawAxes(axes, camera.rotation);
+    watchers.forEach(watcher => watcher());
     return device.queue.onSubmittedWorkDone().then(() => {
       const milliseconds = performance.now() - submitted;
       onFrame(milliseconds);
@@ -264,10 +330,12 @@ async function createViewer(canvas, axes, onFrame) {
     }
     points?.destroy();
     points = device.createBuffer({ size: Math.max(Math.ceil(total * stride * 2 / 4) * 4, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-    bindGroup = device.createBindGroup({
+    const group = buffer => device.createBindGroup({
       layout: bindings,
-      entries: [{ binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: { buffer: points } }, { binding: 2, resource: { buffer: colors } }]
+      entries: [{ binding: 0, resource: { buffer } }, { binding: 1, resource: { buffer: points } }, { binding: 2, resource: { buffer: colors } }]
     });
+    bindGroup = group(uniform);
+    pickGroup = group(pickUniform);
     return redraw();
   }
 
@@ -281,7 +349,7 @@ async function createViewer(canvas, axes, onFrame) {
   const loaded = () => filled.reduce((a, b) => a + b, 0);
 
   function paint(axis, rgba, span) {
-    camera.pick = [0, 1, 2, 3].map(k => k === axis ? 1 : 0);
+    camera.channel = [0, 1, 2, 3].map(k => k === axis ? 1 : 0);
     camera.span = span;
     device.queue.writeBuffer(colors, 0, rgba);
     return redraw();
@@ -292,5 +360,7 @@ async function createViewer(canvas, axes, onFrame) {
     return redraw();
   }
 
-  return { begin, append, loaded, paint, shade, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
+  const watch = watcher => watchers.push(watcher);
+
+  return { begin, append, loaded, paint, shade, pick, project, watch, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
 }

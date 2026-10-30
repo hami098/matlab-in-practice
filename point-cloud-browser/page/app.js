@@ -9,6 +9,7 @@ const viewer = createViewer(document.querySelector("canvas"), document.getElemen
   if (frame) frame.textContent = `${milliseconds.toFixed(1)} ms`;
 });
 viewer.catch(error => status.textContent = error.message);
+const ruler = createRuler(viewer, document.querySelector("canvas"), document.getElementById("measure-panel"), document.getElementById("ruler"), document.getElementById("measure"));
 let host = null;
 let download = null;
 const axis = document.getElementById("axis");
@@ -180,8 +181,9 @@ async function showPoints(info, limit = budget, prepared = info.seconds) {
       stride: info.stride,
       values: values.length === 2 ? values : undefined,
       space: info.space,
-      splat: info.spacing ? 0.6 * Math.max(...[].concat(info.spacing)) : 0
+      splat: info.voxel ? 0.6 * Math.max(...[].concat(info.voxel)) : 0
     });
+    ruler.reset({ low: info.low, high: info.high, voxel: info.voxel && [].concat(info.voxel), unit: info.unit });
     setRange(info.low, info.high, values);
     await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * bytes, Math.ceil(counts[part] * share) * bytes, download.signal, (chunk, offset) => {
       const drawn = view.append(part, chunk, offset);
@@ -254,6 +256,7 @@ document.body.addEventListener("drop", async event => {
     const { low, high } = bounds(xyz);
     const prepared = since(started);
     view.begin([xyz.length / 3], low, high);
+    ruler.reset({ low, high });
     setRange(low, high, []);
     view.append(0, new Uint8Array(quantize(xyz, low, high).buffer), 0);
     const milliseconds = await view.finish();
