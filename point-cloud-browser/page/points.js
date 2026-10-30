@@ -1,5 +1,5 @@
 const shader = `
-struct View { matrix: mat4x4f, low: vec4f, size: vec4f, pick: vec4f }
+struct View { matrix: mat4x4f, low: vec4f, size: vec4f, pick: vec4f, span: vec4f }
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<storage, read> words: array<u32>;
 @group(0) @binding(2) var<storage, read> colors: array<vec4f, 256>;
@@ -14,9 +14,9 @@ fn unit(i: u32) -> vec3f {
 }
 
 @vertex fn vertexMain(@builtin(vertex_index) i: u32) -> Varying {
-  let p = unit(i);
-  let color = colors[u32(round(dot(p, view.pick.xyz) * 255.0))].rgb;
-  return Varying(view.matrix * vec4f(view.low.xyz + p * view.size.xyz, 1.0), color);
+  let position = view.low.xyz + unit(i) * view.size.xyz;
+  let t = clamp((dot(position, view.pick.xyz) - view.span.x) / (view.span.y - view.span.x), 0.0, 1.0);
+  return Varying(view.matrix * vec4f(position, 1.0), colors[u32(round(t * 255.0))].rgb);
 }
 
 @fragment fn fragmentMain(input: Varying) -> @location(0) vec4f {
@@ -112,10 +112,10 @@ async function createViewer(canvas, axes, onFrame) {
     primitive: { topology: "point-list" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" }
   });
-  const uniform = device.createBuffer({ size: 112, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const uniform = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const colors = device.createBuffer({ size: 256 * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const start = combine(turn([1, 0, 0], 0.4), turn([0, 1, 0], -0.6));
-  const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1], pick: [0, 0, 1] };
+  const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, low: [0, 0, 0], size: [1, 1, 1], pick: [0, 0, 1], span: [0, 1] };
   let points = null;
   let bindGroup = null;
   let firsts = [];
@@ -140,7 +140,7 @@ async function createViewer(canvas, axes, onFrame) {
       rotationMatrix(camera.rotation),
       translation(camera.center.map(v => -v))
     );
-    device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.low, 0, ...camera.size, 0, ...camera.pick, 0]));
+    device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.low, 0, ...camera.size, 0, ...camera.pick, 0, ...camera.span, 0, 0]));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: [0.08, 0.09, 0.11, 1], loadOp: "clear", storeOp: "store" }],
@@ -219,8 +219,9 @@ async function createViewer(canvas, axes, onFrame) {
 
   const loaded = () => filled.reduce((a, b) => a + b, 0);
 
-  function paint(axis, rgba) {
+  function paint(axis, rgba, span) {
     camera.pick = [0, 1, 2].map(k => k === axis ? 1 : 0);
+    camera.span = span;
     device.queue.writeBuffer(colors, 0, rgba);
     return redraw();
   }

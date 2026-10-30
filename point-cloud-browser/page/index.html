@@ -20,7 +20,7 @@
 <label>Color by <select id="axis"><option value="0">X</option><option value="1">Y</option><option value="2" selected>Z</option></select></label>
 <label>Scale <select id="scale"></select></label>
 <div id="colorbar"></div>
-<div id="range"><span></span><span></span></div>
+<div id="range"><input id="from" type="number" step="any"><button id="auto">Auto</button><input id="to" type="number" step="any"></div>
 </div>
 <svg id="axes" viewBox="-1.5 -1.5 3 3">
 <g data-axis="0"><line x1="0" y1="0" stroke="#e5534b"/><text fill="#e5534b">X</text></g>

@@ -9,7 +9,7 @@ cd point-cloud-browser
 pointCloudBrowser
 ```
 
-Click a row. At most 4 million points come at first, an even sample of the whole cloud; **Load all** in the panel brings the rest. Drag to rotate in any direction, scroll to zoom, double-click to reset. The panel on the left picks the axis that sets the color and the color scale, with its range in the cloud's own units. The bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. The panel on the right shows the last load (points, size, extent, timings, frame time, GPU), the axes in the corner are the cloud's own X, Y and Z and turn with the view, and each load prints one line with its timings in the Command Window.
+Click a row. At most 4 million points come at first, an even sample of the whole cloud; **Load all** in the panel brings the rest. Drag to rotate in any direction, scroll to zoom, double-click to reset. The panel on the left picks the axis that sets the color and the color scale. Its range starts at the cloud's own minimum and maximum on that axis and can be typed in; points outside it take the end colors, and **Auto** brings the full range back. The bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. The panel on the right shows the last load (points, size, extent, timings, frame time, GPU), the axes in the corner are the cloud's own X, Y and Z and turn with the view, and each load prints one line with its timings in the Command Window.
 
 The table lists generated tori (1, 10 and 50 million points), the files in [demo-data](../demo-data) and, when downloaded, the full data sets in `cache` ([open-data](../open-data)).
 
@@ -30,7 +30,7 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 | `ctSurfacePoints.m` | voxels at or above a threshold (300 HU, bone) with a neighbor below it, in millimeters; only those voxels, 1 to 2 % of a CT, are compared with their six neighbors |
 | `syntheticCloud.m` | random points on a torus |
 | `writePoints.m` | any N by 3 array to the four files the page reads, and the bounds and counts it needs; usable on its own |
-| `page/points.js` | the WebGPU viewer: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color from a 256-entry table indexed by the chosen axis, a trackball camera kept as a quaternion so it turns freely, the axes |
+| `page/points.js` | the WebGPU viewer: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color from a 256-entry table indexed by the chosen axis within the chosen range, a trackball camera kept as a quaternion so it turns freely, the axes |
 | `page/colors.js` | the color scales (Turbo, Viridis, Plasma, Cividis, Jet, Gray) as stops, turned into the 256-entry table and the CSS gradient of the color bar; changing the scale rewrites only that 4 KB table |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files that scales them the same way |
 

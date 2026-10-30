@@ -13,27 +13,35 @@ let host = null;
 let download = null;
 const axis = document.getElementById("axis");
 const scale = document.getElementById("scale");
-const [lowest, highest] = document.querySelectorAll("#range span");
-let range = null;
+const from = document.getElementById("from");
+const to = document.getElementById("to");
+let range = { low: [0, 0, 0], high: [1, 1, 1] };
 
 function recolor() {
   document.getElementById("colorbar").style.background = gradient(scale.value);
-  if (range) {
-    lowest.textContent = range.low[axis.value].toPrecision(3);
-    highest.textContent = range.high[axis.value].toPrecision(3);
-  }
-  viewer.then(view => view.paint(Number(axis.value), table(scale.value)));
+  const span = [Number(from.value), Number(to.value)];
+  if (from.value === "" || to.value === "" || !(span[1] > span[0])) return;
+  viewer.then(view => view.paint(Number(axis.value), table(scale.value), span));
+}
+
+function auto() {
+  from.value = range.low[axis.value].toPrecision(4);
+  to.value = range.high[axis.value].toPrecision(4);
+  recolor();
 }
 
 function setRange(low, high) {
   range = { low, high };
-  recolor();
+  auto();
 }
 
 scale.append(...Object.keys(scales).map(name => new Option(name[0].toUpperCase() + name.slice(1), name)));
-axis.addEventListener("change", recolor);
+axis.addEventListener("change", auto);
 scale.addEventListener("change", recolor);
-recolor();
+from.addEventListener("input", recolor);
+to.addEventListener("input", recolor);
+document.getElementById("auto").addEventListener("click", auto);
+auto();
 
 const since = start => (performance.now() - start) / 1000;
 
