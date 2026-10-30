@@ -7,9 +7,9 @@ cd open-data
 downloadOpenData
 ```
 
-Files already present are skipped, so it can be run again after an interruption.
+Files already present are skipped, so it can be run again after an interruption. CT scans are unpacked from `.nii.gz` to `.nii` once, because `gunzip` does not run on thread-based workers.
 
 | Data set | License | Into | Size |
 |---|---|---|---|
 | [Redwood 3D Scan](https://github.com/isl-org/redwood-3dscan), 441 reconstructed meshes, binary PLY | public domain; cite [arXiv:1602.02481](https://arxiv.org/abs/1602.02481) | `cache/redwood/<id>.ply` | 6.6 GB |
-| [TotalSegmentator](https://zenodo.org/records/10047263) small subset, 102 CT scans, NIfTI | CC BY 4.0; cite the [TotalSegmentator paper](https://doi.org/10.1148/ryai.230024) | `cache/totalsegmentator-small/<subject>/ct.nii.gz` | 3.24 GB download, 4.0 GB unpacked |
+| [TotalSegmentator](https://zenodo.org/records/10047263) small subset, 102 CT scans, NIfTI | CC BY 4.0; cite the [TotalSegmentator paper](https://doi.org/10.1148/ryai.230024) | `cache/totalsegmentator-small/<subject>/ct.nii` | 3.24 GB download, 6.2 GB unpacked |

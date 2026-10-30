@@ -32,7 +32,7 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 | `page/points.js` | the WebGPU viewer: one vertex buffer, color by height, a trackball camera kept as a quaternion so it turns freely, the axes |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files |
 
-`gunzip` is not supported on thread-based workers, so a `.nii.gz` file is unpacked on the MATLAB thread before `parfeval`.
+`gunzip` is not supported on thread-based workers, so CT scans are unpacked once when they are downloaded, never on a click: unpacking a 68 MB `.nii.gz` on the MATLAB thread froze the window for 0.6 s.
 
 ## Measured
 

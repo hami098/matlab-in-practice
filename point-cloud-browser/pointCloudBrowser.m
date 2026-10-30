@@ -17,12 +17,7 @@ served = 0;
             case "select"
                 cancel(job);
                 served = served + 1;
-                sample = samples(event.HTMLEventData);
-                if endsWith(sample.file, ".gz")
-                    unpacked = gunzip(sample.file, fullfile(site, "unpacked-" + served));
-                    sample.file = string(unpacked{1});
-                end
-                job = parfeval(backgroundPool, @prepare, 1, sample, fullfile(site, "points-" + served + ".bin"));
+                job = parfeval(backgroundPool, @prepare, 1, samples(event.HTMLEventData), fullfile(site, "points-" + served + ".bin"));
                 afterEach(job, @deliver, 0, PassFuture=true);
             case "shown"
                 disp(event.HTMLEventData)
@@ -48,11 +43,11 @@ for count = [1e6 1e7 5e7]
         source="generated", megabytes=12 * count / 1e6, count=count, file="");
 end
 files = [dir(fullfile(root, "demo-data", "*.ply")); dir(fullfile(root, "demo-data", "*.nii"))
-    dir(fullfile(root, "cache", "redwood", "*.ply")); dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii.gz"))];
+    dir(fullfile(root, "cache", "redwood", "*.ply")); dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii"))];
 for f = files'
     [~, subject] = fileparts(f.folder);
     name = extractBefore(string(f.name), ".");
-    if f.name == "ct.nii.gz"
+    if f.name == "ct.nii"
         name = string(subject);
     end
     kind = "ct";

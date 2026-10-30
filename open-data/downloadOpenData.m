@@ -18,4 +18,8 @@ if ~isfolder(ct)
     unzip(archive, ct);
     delete(archive);
 end
+for scan = dir(fullfile(ct, "*", "ct.nii.gz"))'
+    gunzip(fullfile(scan.folder, scan.name));
+    delete(fullfile(scan.folder, scan.name));
+end
 end
