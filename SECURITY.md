@@ -9,5 +9,5 @@ A useful report says what is affected (file, function, commit), how to reproduce
 ## Scope
 
 - The code in this repository, on the `main` branch. There are no released versions yet; fixes land on `main`.
-- Of particular interest: a crafted PLY, PCD or TIFF file that makes a reader read out of bounds, hang or allocate without limit, and anything that lets data shown in the page run script in it.
+- Of particular interest: a crafted PLY, PCD, TIFF or NIfTI file that makes a reader read out of bounds, hang or allocate without limit, and anything that lets data shown in the page run script in it.
 - Not in scope: the data sets themselves, MATLAB itself (report that to MathWorks), and reports from automated scanners without a demonstrated impact.

@@ -9,12 +9,13 @@ I am not affiliated with MathWorks. I am an independent researcher exploring how
 | Folder | Question | Status |
 |---|---|---|
 | [gpu-support](gpu-support) | Does the browser inside `uihtml` offer WebGPU and WebGL2? | done |
+| [point-cloud-browser](point-cloud-browser) | Pick a row in an HTML table, see its point cloud or CT with WebGPU, MATLAB stays free | done |
 | webgpu-vs-webgl2-2d | Which draws 2D faster? | planned |
-| float32-transfer | How do points reach the page as a `Float32Array`, without JSON? | planned |
-| background-loading | How does `parfeval` on `backgroundPool` keep the window responsive? | planned |
+| float32-transfer | What is the fastest way to move points from MATLAB to the page? | planned |
 | ply-pcd-reader | How fast can plain MATLAB read binary PLY and PCD? | planned |
 | webgpu-point-cloud | How large a point cloud can WebGPU draw? | planned |
-| open-data | Download scripts for open data sets | planned |
+
+Data: small demo files ship in [demo-data](demo-data); the full data sets are downloaded locally by [open-data](open-data).
 
 ## Run
 
@@ -31,7 +32,7 @@ Each folder's README names its function and explains the result.
 ## Rules
 
 - One folder, one question. Each folder has a README; the code has no comments.
-- MATLAB alone, open source code, openly licensed data. Data is downloaded, never committed.
+- MATLAB alone, open source code, openly licensed data. Only demo files under 512 KB are committed.
 - Pages use WebGPU and WebGL2 directly, with no framework, and never depend on MATLAB.
 - A choice stays only if a measurement supports it.
 
