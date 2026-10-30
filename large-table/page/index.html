@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>large-table</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+<label>Rows <select id="size"><option value="1000000">1,000,000</option><option value="10000000" selected>10,000,000</option><option value="50000000">50,000,000</option></select></label>
+<label>Test <select id="test"><option value="0">All</option></select></label>
+<label>Flag <select id="flag"><option value="all">All</option><option value="abnormal">Abnormal</option><option value="low">Low</option><option value="high">High</option></select></label>
+<span id="status">Waiting for MATLAB</span>
+</header>
+<div id="progress" class="busy"><div></div></div>
+<section id="grid" tabindex="0">
+<div class="head"></div>
+<div class="viewport"><div class="body"></div></div>
+<div class="track"><div class="thumb"></div></div>
+</section>
+<footer>Synthetic data, generated at random for this demo. No real patients; values and reference ranges are illustrative, not clinical.</footer>
+<script src="grid.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

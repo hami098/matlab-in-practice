@@ -1,0 +1,29 @@
+:root { color-scheme: dark; font: 13px system-ui, sans-serif; --columns: 96px 92px 48px 44px 136px 104px 76px 76px 104px 44px; }
+body { margin: 0; height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto 3px 1fr auto; background: #14161b; color: #d8dbe2; }
+header { display: flex; align-items: center; gap: 16px; padding: 8px 12px; background: #1b1e25; border-bottom: 1px solid #2a2e37; }
+header label { display: flex; align-items: center; gap: 6px; color: #8b92a3; }
+header select { font: inherit; color: #d8dbe2; background: #14161b; border: 1px solid #2a2e37; border-radius: 4px; padding: 2px 4px; }
+#status { flex: 1; min-width: 0; text-align: right; color: #8b92a3; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#progress { overflow: hidden; }
+#progress > div { display: none; height: 100%; width: 30%; background: #4c8dff; animation: slide 1.2s linear infinite; }
+#progress.busy > div { display: block; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+#grid { position: relative; display: grid; grid-template-columns: 1fr 12px; grid-template-rows: 28px 1fr; min-height: 0; outline: none; }
+#grid .head, #grid .body > div { display: grid; grid-template-columns: var(--columns); }
+#grid .head { grid-column: 1 / -1; align-items: center; background: #1b1e25; border-bottom: 1px solid #2a2e37; font-weight: 600; user-select: none; }
+#grid span { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#grid .head span[data-key] { cursor: pointer; }
+#grid .head span[data-key]:hover { color: #fff; }
+#grid .head span[data-sort="ascend"]::after { content: " \25B2"; font-size: 10px; }
+#grid .head span[data-sort="descend"]::after { content: " \25BC"; font-size: 10px; }
+#grid .viewport { overflow: hidden; min-height: 0; }
+#grid .body > div { height: 24px; align-items: center; font-variant-numeric: tabular-nums; }
+#grid .body > div.odd { background: #181b21; }
+#grid .body > div.waiting span { background: linear-gradient(90deg, #1d2129, #242934, #1d2129); }
+#grid .body span:nth-child(1), #grid .body span:nth-child(3), #grid .body span:nth-child(7) { text-align: right; color: #8b92a3; }
+#grid .body span:nth-child(7) { color: inherit; }
+#grid span[data-mark="H"] { color: #ff6b6b; font-weight: 600; }
+#grid span[data-mark="L"] { color: #6bb0ff; font-weight: 600; }
+#grid .track { position: relative; background: #181b21; }
+#grid .thumb { position: absolute; left: 2px; right: 2px; top: 0; border-radius: 4px; background: #3a4150; cursor: grab; touch-action: none; }
+footer { padding: 6px 12px; color: #6b7282; background: #1b1e25; border-top: 1px solid #2a2e37; }

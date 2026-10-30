@@ -10,6 +10,7 @@ I am not affiliated with MathWorks. I am an independent researcher exploring how
 |---|---|---|
 | [gpu-support](gpu-support) | Does the browser inside `uihtml` offer WebGPU and WebGL2? | done |
 | [point-cloud-browser](point-cloud-browser) | Pick a row in an HTML table, see its point cloud or CT with WebGPU, MATLAB stays free | done |
+| [large-table](large-table) | Ten million rows, scrolled, sorted and filtered without `uitable`, MATLAB stays free | done |
 | webgpu-vs-webgl2-2d | Which draws 2D faster? | planned |
 | float32-transfer | What is the fastest way to move points from MATLAB to the page? | planned |
 | ply-pcd-reader | How fast can plain MATLAB read binary PLY and PCD? | planned |
