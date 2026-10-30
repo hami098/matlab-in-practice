@@ -11,6 +11,29 @@ const viewer = createViewer(document.querySelector("canvas"), document.getElemen
 viewer.catch(error => status.textContent = error.message);
 let host = null;
 let download = null;
+const axis = document.getElementById("axis");
+const scale = document.getElementById("scale");
+const [lowest, highest] = document.querySelectorAll("#range span");
+let range = null;
+
+function recolor() {
+  document.getElementById("colorbar").style.background = gradient(scale.value);
+  if (range) {
+    lowest.textContent = range.low[axis.value].toPrecision(3);
+    highest.textContent = range.high[axis.value].toPrecision(3);
+  }
+  viewer.then(view => view.paint(Number(axis.value), table(scale.value)));
+}
+
+function setRange(low, high) {
+  range = { low, high };
+  recolor();
+}
+
+scale.append(...Object.keys(scales).map(name => new Option(name[0].toUpperCase() + name.slice(1), name)));
+axis.addEventListener("change", recolor);
+scale.addEventListener("change", recolor);
+recolor();
 
 const since = start => (performance.now() - start) / 1000;
 
@@ -131,6 +154,7 @@ async function showPoints(info, limit = budget, prepared = info.seconds) {
   let first = null;
   try {
     view.begin(counts, info.low, info.high);
+    setRange(info.low, info.high);
     await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * 6, Math.ceil(counts[part] * share) * 6, download.signal, (bytes, offset) => {
       const drawn = view.append(part, bytes, offset);
       first ??= drawn.then(() => since(started));
@@ -202,6 +226,7 @@ document.body.addEventListener("drop", async event => {
     const { low, high } = bounds(xyz);
     const prepared = since(started);
     view.begin([xyz.length / 3], low, high);
+    setRange(low, high);
     view.append(0, new Uint8Array(quantize(xyz, low, high).buffer), 0);
     const milliseconds = await view.finish();
     const complete = since(started);

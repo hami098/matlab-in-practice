@@ -19,6 +19,11 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 #details dt { color: #8b92a3; }
 #details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 #details button { font: inherit; color: inherit; background: #2d3a55; border: 1px solid #4c8dff; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+#coloring { position: absolute; top: 12px; left: 12px; width: 180px; padding: 8px 12px; display: grid; gap: 6px; background: #1b1e25d9; border-radius: 6px; }
+#coloring label { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #8b92a3; }
+#coloring select { font: inherit; color: #d8dbe2; background: #14161b; border: 1px solid #2a2e37; border-radius: 4px; }
+#colorbar { height: 10px; border-radius: 2px; }
+#range { display: flex; justify-content: space-between; color: #8b92a3; font-variant-numeric: tabular-nums; }
 #axes { position: absolute; left: 12px; bottom: 36px; width: 84px; height: 84px; pointer-events: none; }
 #axes line { stroke-width: 0.1; stroke-linecap: round; }
 #axes text { font-size: 0.45px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }

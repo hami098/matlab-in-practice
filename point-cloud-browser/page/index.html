@@ -16,6 +16,12 @@
 <canvas></canvas>
 <div id="progress" hidden><div></div></div>
 <dl id="details"></dl>
+<div id="coloring">
+<label>Color by <select id="axis"><option value="0">X</option><option value="1">Y</option><option value="2" selected>Z</option></select></label>
+<label>Scale <select id="scale"></select></label>
+<div id="colorbar"></div>
+<div id="range"><span></span><span></span></div>
+</div>
 <svg id="axes" viewBox="-1.5 -1.5 3 3">
 <g data-axis="0"><line x1="0" y1="0" stroke="#e5534b"/><text fill="#e5534b">X</text></g>
 <g data-axis="1"><line x1="0" y1="0" stroke="#57ab5a"/><text fill="#57ab5a">Y</text></g>
@@ -23,6 +29,7 @@
 </svg>
 <p id="status">Pick a row, or drop a binary PLY file here.</p>
 </main>
+<script src="colors.js"></script>
 <script src="points.js"></script>
 <script src="app.js"></script>
 </body>
