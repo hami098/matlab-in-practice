@@ -16,6 +16,18 @@ I am not affiliated with MathWorks. I am an independent researcher exploring how
 | webgpu-point-cloud | How large a point cloud can WebGPU draw? | planned |
 | open-data | Download scripts for open data sets | planned |
 
+## Run
+
+1. Click **Open in MATLAB Online** above, or clone the repository and open its folder in MATLAB.
+2. In the Command Window, go into a folder and call its function, for example:
+
+   ```matlab
+   cd gpu-support
+   info = gpuSupport
+   ```
+
+Each folder's README names its function and explains the result.
+
 ## Rules
 
 - One folder, one question. Each folder has a README; the code has no comments.
