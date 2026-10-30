@@ -15,3 +15,6 @@
 *.fig binary
 *.p binary
 *.mltbx binary
+*.ply binary
+*.nii binary
+*.bin binary

@@ -1,6 +1,12 @@
 #!/bin/sh
-matches="$(grep -E -i '(^|/)(secrets/|\.sops\.ya?ml$|[^/]*\.sops\.[^/]+$|\.env$|\.env\.[^/]+$|[^/]*\.(dec|pem|key|p12|pfx|agekey|age|tfstate|tfvars)$|id_(rsa|ecdsa|ed25519)[^/]*$|[^/]*\.(ply|pcd|las|laz|e57|xyz|pts|obj|stl|step|stp|x_t|dcm|dicom|nii|nrrd|mha|mhd|raw|tif|tiff|mat|bin|npy|npz|h5|hdf5|csv|zip|gz|7z|rar|tar|xz|zst)$|^local\.json$)' \
+paths="$(cat)"
+secrets="$(printf '%s\n' "$paths" \
+  | grep -E -i '(^|/)(secrets/|\.sops\.ya?ml$|[^/]*\.sops\.[^/]+$|\.env$|\.env\.[^/]+$|[^/]*\.(dec|pem|key|p12|pfx|agekey|age|tfstate|tfvars)$|id_(rsa|ecdsa|ed25519)[^/]*$|^local\.json$)' \
   | grep -v -E '(^|/)\.env\.example$')"
+data="$(printf '%s\n' "$paths" \
+  | grep -v '^demo-data/' \
+  | grep -E -i '[^/]*\.(ply|pcd|las|laz|e57|xyz|pts|obj|stl|step|stp|x_t|dcm|dicom|nii|nrrd|mha|mhd|raw|tif|tiff|mat|bin|npy|npz|h5|hdf5|csv|zip|gz|7z|rar|tar|xz|zst)$')"
+matches="$(printf '%s\n%s\n' "$secrets" "$data" | sed '/^$/d')"
 [ -z "$matches" ] && exit 0
 printf '%s\n' "$matches"
 exit 1
