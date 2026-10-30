@@ -8,6 +8,17 @@ th:last-child, td:last-child { text-align: right; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: #222631; }
 tbody tr.selected { background: #2d3a55; }
-main { position: relative; min-width: 0; }
+main { position: relative; min-width: 0; overflow: hidden; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; }
+#progress > div { height: 100%; width: 0; background: #4c8dff; }
+#progress.busy > div { width: 30%; animation: slide 1.2s linear infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+#details { position: absolute; top: 12px; right: 12px; margin: 0; padding: 8px 12px; display: grid; grid-template-columns: auto auto; gap: 2px 16px; background: #1b1e25d9; border-radius: 6px; }
+#details:empty { display: none; }
+#details dt { color: #8b92a3; }
+#details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#axes { position: absolute; left: 12px; bottom: 36px; width: 84px; height: 84px; pointer-events: none; }
+#axes line { stroke-width: 0.1; stroke-linecap: round; }
+#axes text { font-size: 0.45px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
 #status { position: absolute; left: 12px; bottom: 8px; margin: 0; }

@@ -1,16 +1,50 @@
 const rows = document.querySelector("tbody");
 const status = document.getElementById("status");
-const viewer = createViewer(document.querySelector("canvas"));
+const bar = document.getElementById("progress");
+const details = document.getElementById("details");
+const hint = "Drag to rotate, scroll to zoom, double-click to reset.";
+let frame = null;
+const viewer = createViewer(document.querySelector("canvas"), document.getElementById("axes"), milliseconds => {
+  if (frame) frame.textContent = `${milliseconds.toFixed(1)} ms`;
+});
 viewer.catch(error => status.textContent = error.message);
 let host = null;
-let current = null;
+let download = null;
 
-const seconds = (from, to) => ((to - from) / 1000).toFixed(2);
+function busy(text) {
+  status.textContent = text;
+  bar.hidden = false;
+  bar.classList.add("busy");
+}
+
+function fill(fraction, text) {
+  status.textContent = text;
+  bar.classList.remove("busy");
+  bar.firstElementChild.style.width = `${fraction * 100}%`;
+}
+
+function done(text) {
+  status.textContent = text;
+  bar.hidden = true;
+  bar.classList.remove("busy");
+  bar.firstElementChild.style.width = "0";
+}
 
 function cell(text) {
   const td = document.createElement("td");
   td.textContent = text;
   return td;
+}
+
+function describe(entries) {
+  details.replaceChildren(...entries.flatMap(([term, value]) => {
+    const dt = document.createElement("dt");
+    const dd = document.createElement("dd");
+    dt.textContent = term;
+    dd.textContent = value;
+    if (term === "Frame") frame = dd;
+    return [dt, dd];
+  }));
 }
 
 function showSamples(samples) {
@@ -23,24 +57,62 @@ function showSamples(samples) {
 }
 
 function select(sample, row) {
+  download?.abort();
   rows.querySelector(".selected")?.classList.remove("selected");
   row.classList.add("selected");
-  current = sample.name;
-  status.textContent = `${current}: preparing`;
+  busy(`${sample.name}: preparing in MATLAB`);
   host.sendEventToMATLAB("select", sample.id);
 }
 
+async function fetchBytes(url, size, signal, onProgress) {
+  const reader = (await fetch(url, { signal })).body.getReader();
+  const bytes = new Uint8Array(size);
+  let received = 0;
+  for (let part = await reader.read(); !part.done; part = await reader.read()) {
+    if (received + part.value.length > size) throw new Error("The file is larger than announced.");
+    bytes.set(part.value, received);
+    received += part.value.length;
+    onProgress(received);
+  }
+  return bytes.buffer;
+}
+
 async function show(name, xyz, prepared, transferred) {
+  status.textContent = `${name}: drawing`;
   const started = performance.now();
-  await (await viewer).show(xyz);
-  status.textContent = `${name}: ${(xyz.length / 3).toLocaleString("en")} points, prepared in ${prepared} s, transferred in ${transferred} s, drawn in ${seconds(started, performance.now())} s`;
-  host?.sendEventToMATLAB("shown", status.textContent);
+  const view = await viewer;
+  const { low, high, frame: first } = await view.show(xyz);
+  const drawn = (performance.now() - started) / 1000;
+  const count = xyz.length / 3;
+  const megabytes = xyz.byteLength / 1e6;
+  describe([
+    ["Name", name],
+    ["Points", count.toLocaleString("en")],
+    ["Data", `${megabytes.toFixed(1)} MB`],
+    ["Extent", high.map((v, i) => (v - low[i]).toPrecision(3)).join(" x ")],
+    ["Prepared", `${prepared.toFixed(2)} s`],
+    ["Transferred", transferred > 0 ? `${transferred.toFixed(2)} s, ${(megabytes / transferred).toFixed(0)} MB/s` : "none"],
+    ["First frame", `${drawn.toFixed(2)} s`],
+    ["Frame", `${first.toFixed(1)} ms`],
+    ["GPU", view.gpu]
+  ]);
+  done(hint);
+  host?.sendEventToMATLAB("shown", `${name}: ${count.toLocaleString("en")} points, prepared in ${prepared.toFixed(2)} s, transferred in ${transferred.toFixed(2)} s, drawn in ${drawn.toFixed(2)} s`);
 }
 
 async function showPoints(info) {
+  download?.abort();
+  download = new AbortController();
+  const size = info.count * 12;
+  const total = (size / 1e6).toFixed(1);
   const started = performance.now();
-  const bytes = await (await fetch(info.url)).arrayBuffer();
-  await show(info.name, new Float32Array(bytes), info.seconds.toFixed(2), seconds(started, performance.now()));
+  try {
+    const buffer = await fetchBytes(info.url, size, download.signal, received =>
+      fill(received / size, `${info.name}: transferring ${(received / 1e6).toFixed(1)} of ${total} MB`));
+    await show(info.name, new Float32Array(buffer), info.seconds, (performance.now() - started) / 1000);
+  } catch (error) {
+    if (error.name !== "AbortError") done(`${info.name}: ${error.message}`);
+  }
 }
 
 function parsePly(buffer) {
@@ -74,12 +146,13 @@ document.body.addEventListener("dragover", event => event.preventDefault());
 document.body.addEventListener("drop", async event => {
   event.preventDefault();
   const file = event.dataTransfer.files[0];
+  busy(`${file.name}: reading`);
   const started = performance.now();
   try {
     const xyz = parsePly(await file.arrayBuffer());
-    await show(file.name, xyz, seconds(started, performance.now()), "0.00");
+    await show(file.name, xyz, (performance.now() - started) / 1000, 0);
   } catch (error) {
-    status.textContent = error.message;
+    done(error.message);
   }
 });
 
@@ -87,6 +160,6 @@ function setup(htmlComponent) {
   host = htmlComponent;
   host.addEventListener("samples", event => showSamples([].concat(event.Data)));
   host.addEventListener("points", event => showPoints(event.Data));
-  host.addEventListener("failed", event => status.textContent = `${current}: ${event.Data}`);
+  host.addEventListener("failed", event => done(event.Data));
   host.sendEventToMATLAB("ready");
 }

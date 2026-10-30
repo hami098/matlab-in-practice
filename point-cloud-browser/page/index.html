@@ -14,6 +14,13 @@
 </aside>
 <main>
 <canvas></canvas>
+<div id="progress" hidden><div></div></div>
+<dl id="details"></dl>
+<svg id="axes" viewBox="-1.5 -1.5 3 3">
+<g data-axis="0"><line x1="0" y1="0" stroke="#e5534b"/><text fill="#e5534b">X</text></g>
+<g data-axis="1"><line x1="0" y1="0" stroke="#57ab5a"/><text fill="#57ab5a">Y</text></g>
+<g data-axis="2"><line x1="0" y1="0" stroke="#539bf5"/><text fill="#539bf5">Z</text></g>
+</svg>
 <p id="status">Pick a row, or drop a binary PLY file here.</p>
 </main>
 <script src="points.js"></script>

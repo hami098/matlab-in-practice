@@ -12,29 +12,48 @@ struct Varying { @builtin(position) position: vec4f, @location(0) color: vec3f }
   return vec4f(input.color, 1.0);
 }`;
 
-const subtract = (a, b) => a.map((v, i) => v - b[i]);
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const normalize = a => a.map(v => v / Math.hypot(...a));
-
 function perspective(fovy, aspect, near, far) {
   const f = 1 / Math.tan(fovy / 2);
   return [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, far / (near - far), -1, 0, 0, near * far / (near - far), 0];
 }
 
-function lookAt(eye, center) {
-  const z = normalize(subtract(eye, center));
-  const x = normalize(cross([0, 1, 0], z));
-  const y = cross(z, x);
-  return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, eye), -dot(y, eye), -dot(z, eye), 1];
+function translation([x, y, z]) {
+  return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
 }
 
-function multiply(a, b) {
-  const out = new Array(16).fill(0);
-  for (let column = 0; column < 4; column++)
-    for (let row = 0; row < 4; row++)
-      for (let k = 0; k < 4; k++) out[column * 4 + row] += a[k * 4 + row] * b[column * 4 + k];
-  return out;
+function rotationMatrix([x, y, z, w]) {
+  return [
+    1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 0,
+    2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 0,
+    2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y), 0,
+    0, 0, 0, 1
+  ];
+}
+
+function multiply(...matrices) {
+  return matrices.reduce((a, b) => {
+    const out = new Array(16).fill(0);
+    for (let column = 0; column < 4; column++)
+      for (let row = 0; row < 4; row++)
+        for (let k = 0; k < 4; k++) out[column * 4 + row] += a[k * 4 + row] * b[column * 4 + k];
+    return out;
+  });
+}
+
+function turn(axis, angle) {
+  const s = Math.sin(angle / 2);
+  return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(angle / 2)];
+}
+
+function combine([ax, ay, az, aw], [bx, by, bz, bw]) {
+  const q = [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz
+  ];
+  const length = Math.hypot(...q);
+  return q.map(v => v / length);
 }
 
 function bounds(xyz) {
@@ -49,7 +68,23 @@ function bounds(xyz) {
   return { low, high };
 }
 
-async function createViewer(canvas) {
+function drawAxes(svg, rotation) {
+  const m = rotationMatrix(rotation);
+  [...svg.querySelectorAll("g")]
+    .map(group => [group, Number(group.dataset.axis) * 4])
+    .map(([group, k]) => ({ group, x: m[k], y: -m[k + 1], z: m[k + 2] }))
+    .sort((a, b) => a.z - b.z)
+    .forEach(({ group, x, y }) => {
+      const [line, label] = group.children;
+      line.setAttribute("x2", x);
+      line.setAttribute("y2", y);
+      label.setAttribute("x", x * 1.25);
+      label.setAttribute("y", y * 1.25);
+      svg.appendChild(group);
+    });
+}
+
+async function createViewer(canvas, axes, onFrame) {
   const adapter = await navigator.gpu?.requestAdapter();
   if (!adapter) throw new Error("WebGPU is not available in this browser.");
   const device = await adapter.requestDevice({ requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize } });
@@ -66,7 +101,8 @@ async function createViewer(canvas) {
   });
   const uniform = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uniform } }] });
-  const camera = { yaw: 0.6, pitch: 0.4, distance: 3, center: [0, 0, 0], radius: 1, range: [0, 1] };
+  const start = combine(turn([1, 0, 0], 0.4), turn([0, 1, 0], -0.6));
+  const camera = { rotation: start, distance: 3, center: [0, 0, 0], radius: 1, range: [0, 1] };
   let points = null;
   let count = 0;
   let depth = null;
@@ -81,14 +117,14 @@ async function createViewer(canvas) {
       depth?.destroy();
       depth = device.createTexture({ size: [width, height], format: "depth24plus", usage: GPUTextureUsage.RENDER_ATTACHMENT });
     }
-    const eye = [
-      camera.center[0] + camera.distance * Math.cos(camera.pitch) * Math.sin(camera.yaw),
-      camera.center[1] + camera.distance * Math.sin(camera.pitch),
-      camera.center[2] + camera.distance * Math.cos(camera.pitch) * Math.cos(camera.yaw)
-    ];
     const near = camera.radius * 0.01;
     const far = camera.distance + camera.radius * 2;
-    const matrix = multiply(perspective(Math.PI / 4, width / height, near, far), lookAt(eye, camera.center));
+    const matrix = multiply(
+      perspective(Math.PI / 4, width / height, near, far),
+      translation([0, 0, -camera.distance]),
+      rotationMatrix(camera.rotation),
+      translation(camera.center.map(v => -v))
+    );
     device.queue.writeBuffer(uniform, 0, new Float32Array([...matrix, ...camera.range, 0, 0]));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -102,7 +138,14 @@ async function createViewer(canvas) {
       pass.draw(count);
     }
     pass.end();
+    const submitted = performance.now();
     device.queue.submit([encoder.finish()]);
+    drawAxes(axes, camera.rotation);
+    return device.queue.onSubmittedWorkDone().then(() => {
+      const milliseconds = performance.now() - submitted;
+      onFrame(milliseconds);
+      return milliseconds;
+    });
   }
 
   function redraw() {
@@ -114,11 +157,15 @@ async function createViewer(canvas) {
     });
   }
 
+  function reset() {
+    camera.rotation = start;
+    camera.distance = camera.radius * 2.5;
+  }
+
   canvas.addEventListener("pointerdown", event => canvas.setPointerCapture(event.pointerId));
   canvas.addEventListener("pointermove", event => {
     if (event.buttons !== 1) return;
-    camera.yaw -= event.movementX * 0.01;
-    camera.pitch = Math.max(-1.5, Math.min(1.5, camera.pitch + event.movementY * 0.01));
+    camera.rotation = combine(turn([0, 1, 0], event.movementX * 0.01), combine(turn([1, 0, 0], event.movementY * 0.01), camera.rotation));
     redraw();
   });
   canvas.addEventListener("wheel", event => {
@@ -126,21 +173,24 @@ async function createViewer(canvas) {
     camera.distance *= Math.exp(event.deltaY * 0.001);
     redraw();
   }, { passive: false });
+  canvas.addEventListener("dblclick", () => {
+    reset();
+    redraw();
+  });
   new ResizeObserver(redraw).observe(canvas);
 
   async function show(xyz) {
     const { low, high } = bounds(xyz);
     camera.center = low.map((v, i) => (v + high[i]) / 2);
-    camera.radius = Math.hypot(...subtract(high, low)) / 2 || 1;
-    camera.distance = camera.radius * 2.5;
+    camera.radius = Math.hypot(...high.map((v, i) => v - low[i])) / 2 || 1;
     camera.range = [low[2], high[2]];
+    reset();
     points?.destroy();
     points = device.createBuffer({ size: Math.max(xyz.byteLength, 12), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(points, 0, xyz);
     count = xyz.length / 3;
-    draw();
-    await device.queue.onSubmittedWorkDone();
+    return { low, high, frame: await draw() };
   }
 
-  return { show };
+  return { show, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
 }
