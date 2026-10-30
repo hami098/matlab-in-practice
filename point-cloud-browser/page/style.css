@@ -18,6 +18,7 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 #details:empty { display: none; }
 #details dt { color: #8b92a3; }
 #details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#details button { font: inherit; color: inherit; background: #2d3a55; border: 1px solid #4c8dff; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
 #axes { position: absolute; left: 12px; bottom: 36px; width: 84px; height: 84px; pointer-events: none; }
 #axes line { stroke-width: 0.1; stroke-linecap: round; }
 #axes text { font-size: 0.45px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }

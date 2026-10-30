@@ -194,11 +194,12 @@ async function createViewer(canvas, axes, onFrame) {
     firsts = counts.map((_, part) => counts.slice(0, part).reduce((a, b) => a + b, 0));
     filled = counts.map(() => 0);
     const total = counts.reduce((a, b) => a + b, 0);
+    const same = low.every((v, i) => v === camera.low[i] && high[i] - v === camera.size[i]);
     camera.low = low;
     camera.size = high.map((v, i) => v - low[i]);
     camera.center = low.map((v, i) => (v + high[i]) / 2);
     camera.radius = Math.hypot(...camera.size) / 2 || 1;
-    reset();
+    if (!same) reset();
     points?.destroy();
     points = device.createBuffer({ size: Math.max(Math.ceil(total * 6 / 4) * 4, 4), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     bindGroup = device.createBindGroup({
@@ -214,5 +215,7 @@ async function createViewer(canvas, axes, onFrame) {
     return redraw();
   }
 
-  return { begin, append, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
+  const loaded = () => filled.reduce((a, b) => a + b, 0);
+
+  return { begin, append, loaded, finish: draw, gpu: `${adapter.info?.vendor ?? ""} ${adapter.info?.architecture ?? ""}`.trim() };
 }

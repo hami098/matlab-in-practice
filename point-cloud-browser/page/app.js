@@ -3,6 +3,7 @@ const status = document.getElementById("status");
 const bar = document.getElementById("progress");
 const details = document.getElementById("details");
 const hint = "Drag to rotate, scroll to zoom, double-click to reset.";
+const budget = 4e6;
 let frame = null;
 const viewer = createViewer(document.querySelector("canvas"), document.getElementById("axes"), milliseconds => {
   if (frame) frame.textContent = `${milliseconds.toFixed(1)} ms`;
@@ -21,6 +22,7 @@ function busy(text) {
 
 function fill(fraction, text) {
   status.textContent = text;
+  bar.hidden = false;
   bar.classList.remove("busy");
   bar.firstElementChild.style.width = `${fraction * 100}%`;
 }
@@ -43,18 +45,20 @@ function describe(entries) {
     const dt = document.createElement("dt");
     const dd = document.createElement("dd");
     dt.textContent = term;
-    dd.textContent = value;
+    dd.append(value);
     if (term === "Frame") frame = dd;
     return [dt, dd];
   }));
 }
 
-function report(name, count, low, high, times) {
+function report(name, count, total, low, high, times, more) {
   const megabytes = count * 6 / 1e6;
   const extent = high.map((v, i) => v - low[i]);
+  const points = count < total ? `${count.toLocaleString("en")} of ${total.toLocaleString("en")}` : count.toLocaleString("en");
   describe([
     ["Name", name],
-    ["Points", count.toLocaleString("en")],
+    ["Points", points],
+    ...(count < total ? [["Rest", more]] : []),
     ["Data", `${megabytes.toFixed(1)} MB`],
     ["Extent", extent.map(v => v.toPrecision(3)).join(" x ")],
     ["Precision", (Math.max(...extent) / 65535).toPrecision(2)],
@@ -66,7 +70,7 @@ function report(name, count, low, high, times) {
     ["GPU", times.gpu]
   ]);
   done(hint);
-  host?.sendEventToMATLAB("shown", `${name}: ${count.toLocaleString("en")} points, prepared ${times.prepared.toFixed(2)} s, first picture ${times.first.toFixed(2)} s, transferred ${times.transferred.toFixed(2)} s, complete ${times.complete.toFixed(2)} s`);
+  host?.sendEventToMATLAB("shown", `${name}: ${points} points, prepared ${times.prepared.toFixed(2)} s, first picture ${times.first.toFixed(2)} s, transferred ${times.transferred.toFixed(2)} s, complete ${times.complete.toFixed(2)} s`);
 }
 
 function showSamples(samples) {
@@ -86,7 +90,7 @@ function select(sample, row) {
   host.sendEventToMATLAB("select", sample.id);
 }
 
-async function stream(url, size, signal, onBytes) {
+async function stream(url, size, limit, signal, onBytes) {
   const reader = (await fetch(url, { signal })).body.getReader();
   let offset = 0;
   let carry = new Uint8Array(0);
@@ -103,6 +107,7 @@ async function stream(url, size, signal, onBytes) {
     onBytes(bytes.subarray(0, usable), offset);
     offset += usable;
     carry = bytes.slice(usable);
+    if (limit < size && offset >= limit) return reader.cancel();
   }
   if (carry.length > 0) {
     const padded = new Uint8Array(4);
@@ -113,19 +118,20 @@ async function stream(url, size, signal, onBytes) {
   if (offset !== size) throw new Error("The file is shorter than announced.");
 }
 
-async function showPoints(info) {
+async function showPoints(info, limit = budget, prepared = info.seconds) {
   download?.abort();
   download = new AbortController();
   const view = await viewer;
   const counts = [].concat(info.counts);
-  const size = info.count * 6;
+  const share = Math.min(1, limit / info.count);
+  const size = Math.ceil(info.count * share) * 6;
   const total = (size / 1e6).toFixed(1);
   const started = performance.now();
   let received = 0;
   let first = null;
   try {
     view.begin(counts, info.low, info.high);
-    await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * 6, download.signal, (bytes, offset) => {
+    await Promise.all([].concat(info.urls).map((url, part) => stream(url, counts[part] * 6, Math.ceil(counts[part] * share) * 6, download.signal, (bytes, offset) => {
       const drawn = view.append(part, bytes, offset);
       first ??= drawn.then(() => since(started));
       received = Math.min(received + bytes.length, size);
@@ -133,14 +139,17 @@ async function showPoints(info) {
     })));
     const transferred = since(started);
     const milliseconds = await view.finish();
-    report(info.name, info.count, info.low, info.high, {
-      prepared: info.seconds,
-      first: info.seconds + await first,
+    const more = document.createElement("button");
+    more.textContent = `Load all ${(info.count * 6 / 1e6).toFixed(0)} MB`;
+    more.addEventListener("click", () => showPoints(info, Infinity, 0));
+    report(info.name, Math.min(view.loaded(), info.count), info.count, info.low, info.high, {
+      prepared,
+      first: prepared + await first,
       transferred,
-      complete: info.seconds + since(started),
+      complete: prepared + since(started),
       frame: milliseconds,
       gpu: view.gpu
-    });
+    }, more);
   } catch (error) {
     if (error.name !== "AbortError") done(`${info.name}: ${error.message}`);
   }
@@ -196,7 +205,7 @@ document.body.addEventListener("drop", async event => {
     view.append(0, new Uint8Array(quantize(xyz, low, high).buffer), 0);
     const milliseconds = await view.finish();
     const complete = since(started);
-    report(file.name, xyz.length / 3, low, high, { prepared, first: complete, transferred: 0, complete, frame: milliseconds, gpu: view.gpu });
+    report(file.name, xyz.length / 3, xyz.length / 3, low, high, { prepared, first: complete, transferred: 0, complete, frame: milliseconds, gpu: view.gpu });
   } catch (error) {
     done(error.message);
   }

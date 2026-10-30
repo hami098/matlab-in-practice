@@ -9,7 +9,7 @@ cd point-cloud-browser
 pointCloudBrowser
 ```
 
-Click a row. Drag to rotate in any direction, scroll to zoom, double-click to reset. The bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. The panel on the right shows the last load (points, size, extent, timings, frame time, GPU), the axes in the corner turn with the view, and each load prints one line with its timings in the Command Window.
+Click a row. At most 4 million points come at first, an even sample of the whole cloud; **Load all** in the panel brings the rest. Drag to rotate in any direction, scroll to zoom, double-click to reset. The bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer. The panel on the right shows the last load (points, size, extent, timings, frame time, GPU), the axes in the corner turn with the view, and each load prints one line with its timings in the Command Window.
 
 The table lists generated tori (1, 10 and 50 million points), the files in [demo-data](../demo-data) and, when downloaded, the full data sets in `cache` ([open-data](../open-data)).
 
@@ -19,8 +19,8 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 
 1. `pointCloudBrowser` copies `page` to a temporary folder and opens it in `uihtml`. The page asks for the list of samples (`ready`).
 2. A click sends `select`. MATLAB starts `prepare` on `backgroundPool` with `parfeval` and returns at once.
-3. `prepare` reads the sample, computes its bounds, scales each coordinate to a 16-bit integer within them, and writes x, y, z (6 bytes per point) in progressive order: every 64th point first, then the next 64th, built with one `permute`, split into four files of 16 such steps each. Any beginning of any file is an even sample of the whole cloud.
-4. `afterEach` sends the file names, point counts and bounds to the page (`points`). The page sets the camera from the bounds, fetches the four files at the same time, streams each into its own region of one WebGPU storage buffer, and draws whatever has arrived with one draw call per region, so the whole object appears after the first chunks and fills in. No number goes through JSON.
+3. `prepare` reads the sample, and `writePoints` computes its bounds, scales each coordinate to a 16-bit integer within them, and writes x, y, z (6 bytes per point) in progressive order: every 64th point first, then the next 64th, built with one `permute`, split into four files of 16 such steps each. Any beginning of any file is an even sample of the whole cloud.
+4. `afterEach` sends the file names, point counts and bounds to the page (`points`). The page sets the camera from the bounds, fetches the four files at the same time, streams each into its own region of one WebGPU storage buffer, and draws whatever has arrived with one draw call per region, so the whole object appears after the first chunks and fills in. Each file stops at its share of 4 million points; **Load all** fetches the same files again in full, without going back to MATLAB. No number goes through JSON.
 5. The page draws only when the data or the camera changes.
 
 | File | Does |
@@ -29,6 +29,7 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 | `readNifti.m` | single file NIfTI-1; returns the stored values in their own type with the slope and intercept that turn them into real values, since converting to single while reading made it 9 times slower; and the voxel size |
 | `ctSurfacePoints.m` | voxels at or above a threshold (300 HU, bone) with a neighbor below it, in millimeters; only those voxels, 1 to 2 % of a CT, are compared with their six neighbors |
 | `syntheticCloud.m` | random points on a torus |
+| `writePoints.m` | any N by 3 array to the four files the page reads, and the bounds and counts it needs; usable on its own |
 | `page/points.js` | the WebGPU viewer: one storage buffer that the vertex shader unpacks with `unpack2x16unorm` (two points in three 32-bit words, since WebGPU has no three-component 16-bit vertex format), color by height, a trackball camera kept as a quaternion so it turns freely, the axes |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files that scales them the same way |
 
@@ -40,11 +41,13 @@ MATLAB R2026b on Windows, NVIDIA Pascal GPU. After a click, the MATLAB thread is
 
 | Sample | Points | Prepared | First picture | Complete |
 |---|---|---|---|---|
-| torus 1M | 1,000,000 | 0.06 s | 0.09 s | 0.09 s |
-| torus 10M | 10,000,000 | 0.46 s | 0.50 s | 0.85 s |
-| torus 50M | 50,000,000 | 2.19 s | 2.32 s | 3.88 s |
-| Redwood 06822, truck | 2,673,085 | 0.15 s | 0.18 s | 0.24 s |
-| CT s1082 | 749,639 | 0.26 s | 0.29 s | 0.30 s |
+| torus 1M | 1,000,000 | 0.05 s | 0.09 s | 0.09 s |
+| torus 10M, 4.2M shown | 10,000,000 | 0.47 s | 0.50 s | 0.65 s |
+| torus 50M, 4.1M shown | 50,000,000 | 2.33 s | 2.45 s | 2.83 s |
+| Redwood 06822, truck | 2,673,085 | 0.14 s | 0.18 s | 0.25 s |
+| CT s1082 | 749,639 | 0.27 s | 0.31 s | 0.34 s |
+
+**Load all** on the 50M torus brought the remaining points in 2.28 s in Chrome from a plain web server; drawing all 50 million takes 13 to 17 ms a frame.
 
 16 bits within the bounds keep 1/65535 of the largest extent: 0.06 mm on a 3.7 m scan.
 
@@ -60,6 +63,7 @@ One change at a time, same machine, second of two runs.
 | bounds from MATLAB, progressive order, drawn while it arrives | 0.58 s | 1.65 s | 2.95 s | 8.86 s |
 | 16-bit coordinates, 6 instead of 12 bytes per point | 0.47 s | 1.04 s | 2.25 s | 5.24 s |
 | four files fetched at the same time | 0.50 s | 0.87 s | 2.37 s | 4.07 s |
+| a budget of 4 million points, the rest on request | 0.50 s | 0.65 s | 2.45 s | 2.83 s |
 
 Faster readers then brought the truck scan from 0.63 s to 0.24 s and the largest CT from 0.90 s to 0.30 s, with identical points.
 
