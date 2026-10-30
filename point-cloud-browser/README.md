@@ -84,8 +84,8 @@ Chrome 156 over the internet, where the transfer runs at 3 to 11 MB/s; the MATLA
 | Sample | Before the optimizations, complete | After: first picture | After: complete |
 |---|---|---|---|
 | demo motorcycle | 0.29 s | 0.21 s | 0.56 s |
-| torus 1M | 1.9 to 4.2 s | 0.42 s | 1.15 s |
-| torus 10M | 12.3 to 19.7 s | 0.62 s | 2.96 s, 4.0M shown |
-| torus 50M | 55.6 s | 2.49 s | 5.41 s, 4.0M shown |
+| torus 1M | 2.0 to 4.2 s | 0.42 s | 1.15 s |
+| torus 10M | 12.7 to 19.9 s | 0.62 s | 2.96 s, 4.0M shown |
+| torus 50M | 56.8 s | 2.49 s | 5.41 s, 4.0M shown |
 
 A long MATLAB Online session grew slow, and the browser console showed MATLAB Online's own file panel timing out; a new session (`exit`, then reload) brought the numbers above back.
