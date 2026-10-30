@@ -16,6 +16,7 @@ served = 0;
                 sendEventToHTMLSource(html, "samples", rmfield(samples, "file"));
             case "select"
                 cancel(job);
+                delete(fullfile(site, "*.bin"));
                 served = served + 1;
                 job = parfeval(backgroundPool, @prepare, 1, samples(event.HTMLEventData), site, "points-" + served);
                 afterEach(job, @deliver, 0, PassFuture=true);
