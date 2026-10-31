@@ -59,6 +59,8 @@ A CT holds one density per voxel in Hounsfield units (HU): air -1000, fat about 
 5. **Patient coordinates.** The transform in the NIfTI header turns voxels into millimeters in patient coordinates: x to the patient's right, y to the front, z up (RAS). The page opens such a CT upright and facing you.
 6. **Drawing.** Each point carries its normal and density in one more 32-bit word, 10 bytes a point. The page colors it by density on the Bone scale, lights it from the camera, and draws it as a disc 1.2 voxels wide, six vertices a point in one draw call, so the surface stays closed when zoomed in. Scans and tori stay one pixel a point: 50 million discs would be 300 million vertices.
 
+Detail follows the scan: the demo head at 1.5 mm gives 106,950 bone points, the head CT at 0.49 x 0.49 x 0.625 mm in [open-data](../open-data) 861,574, eight times as many, with discs a third the size. That scan is 69 million voxels in 32-bit floats, 275 MB.
+
 Checked against the bone labels that come with TotalSegmentator (skull, vertebrae, ribs, sternum, clavicles, scapulae, humeri, hips, sacrum, femurs) on 14 scans from 8 of the 11 study types in the set. A point counts as bone within two voxels of a labeled bone; a labeled bone surface counts as found within two voxels of a point. Median, lowest to highest:
 
 | Bone from | Inside the body | Shown points that are labeled bone | Labeled bone surface found |
@@ -103,6 +105,7 @@ MATLAB R2026b on Windows, NVIDIA Pascal GPU. After a click, the MATLAB thread is
 | torus 50M, 4.1M shown | 50,000,000 | 2.33 s | 2.45 s | 2.83 s |
 | Redwood 06822, truck | 2,673,085 | 0.14 s | 0.18 s | 0.25 s |
 | CT s1082, bone | 514,720 | 0.70 s | 0.78 s | 0.81 s |
+| head CT, 0.5 mm, bone | 861,574 | 1.35 s | 1.47 s | 1.50 s |
 
 **Load all** on the 50M torus brought the remaining points in 2.28 s in Chrome from a plain web server; drawing all 50 million takes 13 to 17 ms a frame.
 

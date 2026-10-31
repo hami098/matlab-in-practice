@@ -38,8 +38,8 @@ served = 0;
 end
 
 function samples = findSamples(root, site)
-files = [dir(fullfile(root, "demo-data", "*.ply")); dir(fullfile(root, "demo-data", "*.nii.gz"))
-    dir(fullfile(root, "cache", "redwood", "*.ply")); dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii"))]';
+files = [dir(fullfile(root, "demo-data", "*.ply")); dir(fullfile(root, "demo-data", "*.nii.gz")); dir(fullfile(root, "cache", "head-ct", "ct.nii"))
+    dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii")); dir(fullfile(root, "cache", "redwood", "*.ply"))]';
 folders = string({files.folder});
 fileNames = string({files.name});
 [~, subjects] = fileparts(folders);
