@@ -40,7 +40,8 @@ const request = { rows: Number(sizes.value), filters: [], sort: "", direction: "
 let host = null;
 let table = null;
 let cache = new Map();
-let loading = new Set();
+let loading = new Map();
+let appending = Promise.resolve();
 let chunks = [];
 let ends = [];
 let fresh = 0;
@@ -66,9 +67,10 @@ function views(buffer, count) {
 async function load(block) {
   const prefix = table.prefix;
   if (cache.has(block) || loading.has(block)) return;
-  loading.add(block);
-  const response = await fetch(`${prefix}-${block}.bin`).catch(() => null);
-  if (prefix !== table.prefix) return;
+  const control = new AbortController();
+  loading.set(block, control);
+  const response = await fetch(`${prefix}-${block}.bin`, { signal: control.signal }).catch(() => null);
+  if (prefix !== table.prefix || control.signal.aborted) return;
   if (!response?.ok) {
     if (!table.complete) setTimeout(() => retry(prefix, block), 100);
     return;
@@ -98,7 +100,7 @@ function locate(index) {
       else low = middle + 1;
     }
     const chunk = chunks[low];
-    return chunk.data && [chunk.data, chunk.count - 1 - (position - (low ? ends[low - 1] : 0))];
+    return [chunk.data, chunk.count - 1 - (position - (low ? ends[low - 1] : 0))];
   }
   const row = index - fresh;
   const block = Math.floor(row / table.blockRows);
@@ -127,6 +129,12 @@ function range(first, last) {
     const margin = table.blockRows / 4;
     const from = Math.floor(Math.max(0, first - fresh - margin) / table.blockRows);
     const to = Math.floor(Math.min(table.rows - 1, last - fresh + margin) / table.blockRows);
+    for (const [block, control] of loading) {
+      if (block < from || block > to) {
+        control.abort();
+        loading.delete(block);
+      }
+    }
     for (let block = Math.max(0, from); block <= to; block++) load(block);
   }
   if (!reported && (table.rows === 0 || cache.has(0))) {
@@ -150,7 +158,7 @@ function complete(manifest) {
   if (!table || manifest.prefix !== table.prefix) return;
   const s = manifest.seconds;
   table.complete = true;
-  loading = new Set();
+  loading = new Map();
   grid.refresh();
   const line = `Read ${s.prepared.toFixed(2)} s, filter and sort ${s.selected.toFixed(2)} s, first block ${s.first.toFixed(2)} s, all ${table.blocks} blocks ${s.written.toFixed(2)} s`;
   if (reported) say(`${table.rows.toLocaleString("en")} of ${table.total.toLocaleString("en")} rows. ${line}.`);
@@ -162,7 +170,7 @@ function show(manifest) {
   for (const key of ["tests", "columns"]) table[key] = [].concat(table[key]);
   for (const key of Object.keys(table.categories)) table.categories[key] = [].concat(table.categories[key]);
   cache = new Map();
-  loading = new Set();
+  loading = new Map();
   chunks = [];
   ends = [];
   fresh = 0;
@@ -175,22 +183,22 @@ function show(manifest) {
   grid.show(table.rows);
 }
 
-async function addChunk(file, count) {
-  const chunk = { count, data: null };
-  chunks.push(chunk);
-  fresh += count;
-  ends.push(fresh);
-  table.total += count;
-  if (!grid.grow(count)) {
-    unseen += count;
-    news.textContent = `${unseen.toLocaleString("en")} new rows`;
-    news.hidden = false;
-  }
+function addChunk(file, count) {
   const prefix = table.prefix;
-  const response = await fetch(file).catch(() => null);
-  if (!response?.ok || prefix !== table.prefix) return;
-  chunk.data = views(await response.arrayBuffer(), count);
-  grid.refresh();
+  const fetched = fetch(file).then(response => response.ok ? response.arrayBuffer() : null).catch(() => null);
+  appending = appending.then(async () => {
+    const buffer = await fetched;
+    if (!buffer || prefix !== table.prefix) return;
+    chunks.push({ count, data: views(buffer, count) });
+    fresh += count;
+    ends.push(fresh);
+    table.total += count;
+    if (!grid.grow(count)) {
+      unseen += count;
+      news.textContent = `${unseen.toLocaleString("en")} new rows`;
+      news.hidden = false;
+    }
+  });
 }
 
 function wait(count) {
