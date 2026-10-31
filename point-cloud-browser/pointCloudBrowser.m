@@ -1,8 +1,8 @@
 function pointCloudBrowser()
 here = fileparts(mfilename("fullpath"));
-samples = findSamples(fileparts(here));
 site = tempname;
 copyfile(fullfile(here, "page"), site);
+samples = findSamples(fileparts(here), site);
 fig = uifigure(Name="point-cloud-browser", Position=[100 100 1200 700]);
 html = uihtml(uigridlayout(fig, [1 1], Padding=0), HTMLSource=fullfile(site, "index.html"));
 html.HTMLEventReceivedFcn = @onEvent;
@@ -37,8 +37,8 @@ served = 0;
     end
 end
 
-function samples = findSamples(root)
-files = [dir(fullfile(root, "demo-data", "*.ply")); dir(fullfile(root, "demo-data", "*.nii"))
+function samples = findSamples(root, site)
+files = [dir(fullfile(root, "demo-data", "*.ply")); dir(fullfile(root, "demo-data", "*.nii.gz"))
     dir(fullfile(root, "cache", "redwood", "*.ply")); dir(fullfile(root, "cache", "totalsegmentator-small", "*", "ct.nii"))]';
 folders = string({files.folder});
 fileNames = string({files.name});
@@ -49,12 +49,17 @@ kinds = repmat("ct", size(names));
 kinds(endsWith(fileNames, ".ply")) = "scan";
 sources = repmat("cache", size(names));
 sources(contains(folders, "demo-data")) = "demo";
+paths = fullfile(folders, fileNames);
+packed = endsWith(paths, ".gz");
+if any(packed)
+    paths(packed) = string(gunzip(cellstr(paths(packed)), site));
+end
 generated = [1e6 1e7 5e7];
 names = [compose("torus %dM", generated / 1e6) names];
 samples = struct(id=num2cell(1:numel(names)), name=cellstr(names), ...
     kind=cellstr([repmat("synthetic", 1, 3) kinds]), source=cellstr([repmat("generated", 1, 3) sources]), ...
     megabytes=num2cell([12 * generated / 1e6, [files.bytes] / 1e6]), count=num2cell([generated NaN(size(files))]), ...
-    file=num2cell([strings(1, 3) fullfile(folders, fileNames)]));
+    file=num2cell([strings(1, 3) paths]));
 end
 
 function info = prepare(sample, folder, name)

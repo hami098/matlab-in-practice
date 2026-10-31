@@ -17,4 +17,5 @@
 *.mltbx binary
 *.ply binary
 *.nii binary
+*.gz binary
 *.bin binary

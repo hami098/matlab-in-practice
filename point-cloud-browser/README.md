@@ -46,7 +46,7 @@ Without MATLAB, serve the repository folder with any static web server, open `pa
 | `page/colors.js` | the color scales (Turbo, Viridis, Plasma, Cividis, Jet, Gray, Bone) as stops, turned into the 256-entry table and the CSS gradient of the color bar; changing the scale rewrites only that 4 KB table |
 | `page/app.js` | the table, the progress bar, the details, the messages with MATLAB, and a PLY reader for dropped files that scales them the same way |
 
-`gunzip` is not supported on thread-based workers, so CT scans are unpacked once when they are downloaded, never on a click: unpacking a 68 MB `.nii.gz` on the MATLAB thread froze the window for 0.6 s.
+`gunzip` is not supported on thread-based workers, so CT scans are unpacked once when they are downloaded, never on a click: unpacking a 68 MB `.nii.gz` on the MATLAB thread froze the window for 0.6 s. The demo CT ships packed and is unpacked into the window's temporary folder when the window opens: 2.0 MB in 0.03 s.
 
 ## Bone
 
