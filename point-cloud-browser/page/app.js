@@ -2,6 +2,8 @@ const rows = document.querySelector("tbody");
 const status = document.getElementById("status");
 const bar = document.getElementById("progress");
 const details = document.getElementById("details");
+const waiting = document.getElementById("waiting");
+let ticker = null;
 const hint = "Drag to rotate, scroll to zoom, double-click to reset.";
 const budget = 4e6;
 let frame = null;
@@ -63,9 +65,21 @@ function busy(text) {
   status.textContent = text;
   bar.hidden = false;
   bar.classList.add("busy");
+  const started = performance.now();
+  const tick = () => waiting.lastChild.textContent = `${text} ${since(started).toFixed(1)} s`;
+  clearInterval(ticker);
+  tick();
+  ticker = setInterval(tick, 100);
+  waiting.hidden = false;
+}
+
+function stopWaiting() {
+  clearInterval(ticker);
+  waiting.hidden = true;
 }
 
 function fill(fraction, text) {
+  stopWaiting();
   status.textContent = text;
   bar.hidden = false;
   bar.classList.remove("busy");
@@ -73,6 +87,7 @@ function fill(fraction, text) {
 }
 
 function done(text) {
+  stopWaiting();
   status.textContent = text;
   bar.hidden = true;
   bar.classList.remove("busy");

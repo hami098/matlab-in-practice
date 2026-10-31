@@ -17,7 +17,7 @@ Click a row.
 - **CT:** opens upright and facing you, colored by density (HU) on the Bone scale and lit from the camera; **Light** turns the shading off. See [Bone](#bone).
 - **Measure:** open it and click two points for the distance between them and its margin. See [Measure](#measure).
 - **Details:** points, size, extent, timings, frame time, GPU. At most 4 million points come first, an even sample of the whole cloud; **Load all** brings the rest.
-- **Progress:** the bar on top moves while MATLAB prepares and fills while the points arrive; a new click cancels the running transfer and deletes the files of the previous load, so the temporary folder holds one load at most (seven loads used to leave 687 MB until the window closed). Each load prints its timings in the Command Window.
+- **Progress:** while MATLAB prepares, a timer in the middle of the view counts the seconds and the bar on top moves; the bar fills while the points arrive; a new click cancels the running transfer and deletes the files of the previous load, so the temporary folder holds one load at most (seven loads used to leave 687 MB until the window closed). Each load prints its timings in the Command Window.
 
 The table lists generated tori (1, 10 and 50 million points), the files in [demo-data](../demo-data) and, when downloaded, the full data sets in `cache` ([open-data](../open-data)).
 
